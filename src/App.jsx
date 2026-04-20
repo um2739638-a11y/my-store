@@ -2986,16 +2986,17 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <PageTransition trigger={transitionTrigger} />
-      <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
-      <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
+  <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
 
-<button onClick={async () => {
-  const { data, error } = await supabase.from("categories").select("*");
-  console.log("DATA:", data);
-  console.log("ERROR:", error);
-}}>
-  Test Supabase
-</button>
+<div style={{ padding: "20px", textAlign: "center", position: "relative", zIndex: 9999 }}>
+  <button onClick={async () => {
+    const { data, error } = await supabase.from("categories").select("*");
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
+  }}>
+    Test Supabase
+  </button>
+</div>
       {renderPage()}
       <SiteFooter setPage={navigate} />
       <WhatsAppFloat number={db.settings.whatsappNumber} />
