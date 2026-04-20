@@ -1,6 +1,6 @@
 // v2 - updated
 import { supabase } from "./lib/supabase";
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 
 
 const STORAGE_KEY = "ismallone_premium_v4";
