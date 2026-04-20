@@ -1,5 +1,5 @@
 // v2 - updated
-import { supabase } from "./lib/supabase";
+
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 
 
@@ -2996,13 +2996,3 @@ export default function App() {
     </>
   );
 }
-useEffect(() => {
-  const testConnection = async () => {
-    const { data, error } = await supabase.from("categories").select("*");
-
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
-  };
-
-  testConnection();
-}, []);
