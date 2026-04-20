@@ -1,5 +1,5 @@
 // v2 - updated
-
+import { supabase } from "./lib/supabase";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 
 
@@ -2987,6 +2987,15 @@ export default function App() {
       <style>{CSS}</style>
       <PageTransition trigger={transitionTrigger} />
       <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
+      <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
+
+<button onClick={async () => {
+  const { data, error } = await supabase.from("categories").select("*");
+  console.log("DATA:", data);
+  console.log("ERROR:", error);
+}}>
+  Test Supabase
+</button>
       {renderPage()}
       <SiteFooter setPage={navigate} />
       <WhatsAppFloat number={db.settings.whatsappNumber} />
