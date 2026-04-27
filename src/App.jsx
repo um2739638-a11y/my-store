@@ -1,11 +1,32 @@
 // v2 - updated
+
 import { supabase } from "./lib/supabase";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { getProducts, getOrders, getSettings, getCoupons, getFaqs, addProduct as apiAddProduct, deleteProduct as apiDeleteProduct, placeOrder as apiPlaceOrder, updateOrderStatus as apiUpdateOrderStatus } from "./lib/api";
 
 
-const STORAGE_KEY = "ismallone_premium_v4";
-const UI_KEY = "ismallone_premium_ui_v4";
-const AUTH_KEY = "ismallone_auth_v2";
+
+
+function getCountdownTarget() {
+  const now = new Date();
+  const target = new Date();
+  target.setDate(now.getDate() + 2);
+  target.setHours(23, 59, 59, 999);
+  return target.toISOString();
+}
+
+const DEFAULT_SETTINGS = {
+  storeName: "ISmallOne",
+  heroTitle: "Pakistan's #1 Trending Gadgets & Lifestyle Store",
+  heroSubtitle:
+    "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 10,000+ happy customers.",
+  announcement: "FREE DELIVERY ON ORDERS ABOVE Rs 3,000  •  CASH ON DELIVERY AVAILABLE  •  LIMITED TIME DEALS",
+  supportEmail: "support@ISmallOne.shop",
+  whatsappNumber: "923008631809",
+  shippingFee: 199,
+  freeShippingThreshold: 3000,
+  saleEndsAt: getCountdownTarget(),
+};
 
 function uid(prefix = "id") {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}_${Date.now()}`;
@@ -37,17 +58,9 @@ function averageRating(reviews = []) {
   if (!reviews.length) return 0;
   return reviews.reduce((sum, item) => sum + Number(item.rating || 0), 0) / reviews.length;
 }
-function getCountdownTarget() {
-  const now = new Date();
-  const target = new Date();
-  target.setDate(now.getDate() + 2);
-  target.setHours(23, 59, 59, 999);
-  return target.toISOString();
-}
-
-const CITIES = ["Lahore","Karachi","Islamabad","Faisalabad","Rawalpindi","Multan","Peshawar","Quetta","Hyderabad","Gujranwala","Sialkot","Bahawalpur"];
-const LIVE_NAMES = ["Ayesha","Bilal","Hamza","Sana","Usman","Mariam","Ali","Fatima","Hassan","Sara","Ahmed","Zara","Omar","Hina","Tariq","Nadia"];
-const LIVE_ACTIONS = ["just ordered","added to cart","is viewing","just bought"];
+const CITIES = ["Lahore", "Karachi", "Islamabad", "Faisalabad", "Rawalpindi", "Multan", "Peshawar", "Quetta", "Hyderabad", "Gujranwala", "Sialkot", "Bahawalpur"];
+const LIVE_NAMES = ["Ayesha", "Bilal", "Hamza", "Sana", "Usman", "Mariam", "Ali", "Fatima", "Hassan", "Sara", "Ahmed", "Zara", "Omar", "Hina", "Tariq", "Nadia"];
+const LIVE_ACTIONS = ["just ordered", "added to cart", "is viewing", "just bought"];
 // ─── CLOUDINARY UPLOAD ────────────────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dntz5x9s4";        // from dashboard
 const CLOUDINARY_UPLOAD_PRESET = "ismallone_uploads"; // what you just created
@@ -79,115 +92,6 @@ async function uploadToCloudinary(file, onProgress) {
     xhr.send(formData);
   });
 }
-function getSeedDb() {
-  const products = [
-    {
-      id: uid("p"),
-      slug: "eunomia-onion-keratin-shampoo",
-      name: "EUNOMIA Onion & Keratin Shampoo",
-      category: "Hair Care",
-      shortDescription: "Sulfate-free strength and shine shampoo with premium salon-style presentation.",
-      description: "A premium hair-care product page layout inspired by modern conversion-focused stores. This version uses a large image gallery, bold pricing, WhatsApp ordering, trust sections, urgency lines, and accordion details.",
-      price: 2750, compareAtPrice: 3999, stockLeft: 12, soldCount: 1187, featured: true, trending: true, rating: 4.5, reviewCount: 324,
-      images: ["https://images.unsplash.com/photo-1626784215021-2e39ccf971cd?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Onion extract + keratin support","Sulfate-free feel","Salon-style premium bottle look","Suitable for dry and weak-looking hair"],
-      variants: [{id:uid("v"),label:"900 ml",price:2750},{id:uid("v"),label:"2 Bottles Deal",price:4999}],
-      reviews: [{id:uid("r"),name:"Ayesha",rating:5,text:"Bottle looked premium and delivery was smooth.",date:"2026-03-29T10:00:00"},{id:uid("r"),name:"Laiba",rating:4,text:"Nice packaging and the page looked trustworthy.",date:"2026-03-30T13:30:00"},{id:uid("r"),name:"Usman",rating:5,text:"Good experience. Ordered from WhatsApp easily.",date:"2026-04-01T16:45:00"}],
-    },
-    {
-      id: uid("p"), slug: "t10-ultra-smart-watch", name: "T10 Ultra Smart Watch", category: "Smart Watches",
-      shortDescription: "Big-display premium watch with calling support and daily utility features.",
-      description: "A hot-selling watch product for a general store. Strong card image, sale badge, reviews, and social proof included.",
-      price: 1899, compareAtPrice: 3499, stockLeft: 21, soldCount: 946, featured: true, trending: true, rating: 4.4, reviewCount: 271,
-      images: ["https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1434494878577-86c23bcb06b9?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Bluetooth calling","Fitness tracking","Large display","Everyday wear design"],
-      variants: [{id:uid("v"),label:"Black",price:1899},{id:uid("v"),label:"Silver",price:1899}],
-      reviews: [{id:uid("r"),name:"Bilal",rating:4,text:"Good value for the price.",date:"2026-03-28T12:00:00"},{id:uid("r"),name:"Hamza",rating:5,text:"Looks premium on wrist.",date:"2026-03-31T18:10:00"}],
-    },
-    {
-      id: uid("p"), slug: "crystal-galaxy-lamp", name: "Crystal Galaxy Moon Lamp", category: "Home Decor",
-      shortDescription: "A glowing decor piece that instantly upgrades room aesthetics.",
-      description: "Conversion-friendly decor product with strong presentation, visible discount, and trust-building styling.",
-      price: 999, compareAtPrice: 1799, stockLeft: 33, soldCount: 1244, featured: true, trending: true, rating: 4.7, reviewCount: 502,
-      images: ["https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Warm glow","Room decor gift","Beautiful night light","Compact and premium"],
-      variants: [{id:uid("v"),label:"Standard",price:999}],
-      reviews: [{id:uid("r"),name:"Mariam",rating:5,text:"Very beautiful lamp.",date:"2026-03-25T14:20:00"}],
-    },
-    {
-      id: uid("p"), slug: "mini-portable-projector", name: "Mini Portable Projector", category: "Projectors",
-      shortDescription: "Compact entertainment projector for room movies and casual streaming.",
-      description: "A premium-looking product page item with strong visual selling and checkout-friendly structure.",
-      price: 5999, compareAtPrice: 7999, stockLeft: 8, soldCount: 277, featured: true, trending: false, rating: 4.3, reviewCount: 88,
-      images: ["https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Portable size","Room movie feel","Easy setup","Popular gift choice"],
-      variants: [{id:uid("v"),label:"Standard",price:5999}],
-      reviews: [{id:uid("r"),name:"Hassan",rating:4,text:"Useful and fun product.",date:"2026-03-30T20:00:00"}],
-    },
-    {
-      id: uid("p"), slug: "foldable-mini-washing-machine", name: "Foldable Mini Washing Machine", category: "Home Essentials",
-      shortDescription: "Compact travel-friendly washer for light daily use.",
-      description: "A practical product for general store style selling with high-appeal imagery and urgency triggers.",
-      price: 4499, compareAtPrice: 6499, stockLeft: 16, soldCount: 342, featured: false, trending: true, rating: 4.2, reviewCount: 91,
-      images: ["https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1582735689369-4fe89db7114c?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Foldable","Travel use","Light clothes support","Compact design"],
-      variants: [{id:uid("v"),label:"Standard",price:4499}],
-      reviews: [{id:uid("r"),name:"Sana",rating:4,text:"Helpful in hostel use.",date:"2026-03-27T09:00:00"}],
-    },
-    {
-      id: uid("p"), slug: "arctic-air-room-cooler", name: "Arctic Air Room Cooler", category: "Summer Deals",
-      shortDescription: "Compact cooling device with fresh seasonal appeal.",
-      description: "A highly clickable seasonal product for homepage sliders and promo sections.",
-      price: 2999, compareAtPrice: 4999, stockLeft: 14, soldCount: 411, featured: false, trending: true, rating: 4.1, reviewCount: 70,
-      images: ["https://images.unsplash.com/photo-1582719471384-894fbb16e074?auto=format&fit=crop&w=1200&q=80","https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"],
-      shortSpecs: ["Seasonal use","Portable","Fresh airflow","Compact design"],
-      variants: [{id:uid("v"),label:"Standard",price:2999}],
-      reviews: [{id:uid("r"),name:"Ahmed",rating:4,text:"Good for small room use.",date:"2026-03-26T08:15:00"}],
-    },
-  ].map((p) => ({ ...p, rating: p.rating || averageRating(p.reviews), reviewCount: p.reviewCount || p.reviews.length }));
-
-  return {
-    settings: {
-      storeName: "ISmallOne",
-      heroTitle: "Pakistan's #1 Trending Gadgets & Lifestyle Store",
-      heroSubtitle: "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 10,000+ happy customers.",
-      announcement: "FREE DELIVERY ON ORDERS ABOVE Rs 3,000  •  CASH ON DELIVERY AVAILABLE  •  LIMITED TIME DEALS",
-      supportEmail: "support@ISmallOne.shop",
-      whatsappNumber: "923008631809",
-      shippingFee: 199,
-      freeShippingThreshold: 3000,
-      saleEndsAt: getCountdownTarget(),
-    },
-    categories: ["All","Hair Care","Smart Watches","Home Decor","Projectors","Home Essentials","Summer Deals"],
-    products,
-    orders: [],
-    coupons: [{ code: "SAVE10", type: "percent", value: 10 }],
-    users: [],
-    siteSettings: {
-      shippingPolicy: "We deliver across Pakistan in 3-5 business days.",
-      returnPolicy: "7-day hassle-free returns for damaged or incorrect products.",
-      privacyPolicy: "We respect your privacy. Your personal information is never shared.",
-      termsConditions: "By using ISmallOne, you agree to our terms.",
-      faqItems: [
-        {q:"How long does delivery take?", a:"We deliver in 3-5 business days across Pakistan. Major cities may receive within 2-3 days."},
-        {q:"Is Cash on Delivery available?", a:"Yes! COD is available nationwide. You pay when you receive your order."},
-        {q:"Can I return a product?", a:"Yes, we have a 7-day return policy for damaged or incorrect products."},
-        {q:"How do I track my order?", a:"Contact us on WhatsApp with your order ID and we'll provide real-time updates."},
-        {q:"Are products authentic?", a:"100% authentic products. We source directly from verified suppliers."},
-        {q:"What payment methods are accepted?", a:"Cash on Delivery, JazzCash, EasyPaisa, and Bank Transfer."},
-      ]
-    }
-  };
-}
-
-function loadDb() {
-  try { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return getSeedDb(); const parsed = JSON.parse(raw); if (!parsed?.products?.length) return getSeedDb(); if (!parsed.users) parsed.users = []; if (!parsed.siteSettings) parsed.siteSettings = getSeedDb().siteSettings; return parsed; } catch { return getSeedDb(); }
-}
-function saveDb(db) { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
-function loadUi() { try { const raw = localStorage.getItem(UI_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
-function saveUi(ui) { localStorage.setItem(UI_KEY, JSON.stringify(ui)); }
-function loadAuth() { try { const raw = localStorage.getItem(AUTH_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
-function saveAuth(auth) { if (auth) localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); else localStorage.removeItem(AUTH_KEY); }
 function findProductBySlug(products, slug) { return products.find((item) => item.slug === slug) || null; }
 
 // ─── ANIMATED COUNTER ─────────────────────────────────────────────────────────
@@ -291,7 +195,7 @@ function WhatsAppFloat({ number }) {
     <a href={`https://wa.me/${number}?text=Assalam%20o%20Alaikum!%20I%20want%20to%20order%20from%20ISmallOne.`}
       target="_blank" rel="noreferrer" className="wa-float">
       <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
       </svg>
       <span className="wa-tooltip">Chat on WhatsApp</span>
     </a>
@@ -328,7 +232,7 @@ function Product3DViewer({ images, productName }) {
         style={{ transform: `perspective(800px) rotateY(${(angle * 0.05) % 8}deg) scale(${isHovered ? 1.05 : 1})` }}
         draggable={false} />
       <div className="viewer3d-badge">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
         360° View
       </div>
       <div className="viewer3d-hint">{isDragging ? "↔ Drag to rotate" : "↔ Auto-rotating"}</div>
@@ -338,55 +242,89 @@ function Product3DViewer({ images, productName }) {
 }
 
 // ─── AUTH MODAL ───────────────────────────────────────────────────────────────
-function AuthModal({ onClose, onLogin, dbUsers, setDbUsers, isAdminLogin }) {
+function AuthModal({ onClose, onLogin, isAdminLogin }) {
   const [mode, setMode] = useState(isAdminLogin ? "admin" : "login");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
-  const [adminForm, setAdminForm] = useState({ username: "", password: "" });
+  const [adminForm, setAdminForm] = useState({
+    email: "",
+    password: ""
+  });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
-  const ADMIN_CREDS = { username: "IsmallOne", password: "iamishhmmalone" };
+  const [showAdminEmail, setShowAdminEmail] = useState(false);
 
-  function handleAdminLogin(e) {
-    e.preventDefault(); setErr("");
-    if (!adminForm.username || !adminForm.password) { setErr("Please fill all fields."); return; }
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    setErr("");
+
+    // 🔴 FIX: use email, not username
+    if (!adminForm.email || !adminForm.password) {
+      setErr("Please fill all fields.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (adminForm.username === ADMIN_CREDS.username && adminForm.password === ADMIN_CREDS.password) {
-        onLogin({ id: "admin", name: "ISmallOne Admin", email: "admin@ismallone.shop", role: "admin" });
-        onClose();
-      } else setErr("Invalid admin credentials.");
-    }, 900);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: adminForm.email,
+      password: adminForm.password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setErr(error.message);   // 🔥 show real error (important)
+      return;
+    }
+
+    // 🔥 CRITICAL: CHECK ADMIN ROLE
+    if (data.user.user_metadata?.role !== "admin") {
+      setErr("You are not authorized as admin.");
+      return;
+    }
+
+    // ✅ SUCCESS
+    onLogin({
+      id: data.user.id,
+      name: data.user.user_metadata?.name || "Admin",
+      email: data.user.email,
+      role: "admin",
+    });
+
+    onClose();
   }
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault(); setErr("");
     if (!form.email || !form.password) { setErr("Please fill all fields."); return; }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const user = dbUsers.find(u => u.email.toLowerCase() === form.email.toLowerCase() && u.password === form.password);
-      if (user) { onLogin({ ...user, role: "user" }); onClose(); }
-      else setErr("Invalid email or password.");
-    }, 900);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: form.email,
+      password: form.password,
+    });
+    setLoading(false);
+    if (error) { setErr("Invalid email or password."); return; }
+    onLogin({ id: data.user.id, name: data.user.user_metadata?.name || "Customer", email: data.user.email, role: "user" });
+    onClose();
   }
 
-  function handleRegister(e) {
+  async function handleRegister(e) {
     e.preventDefault(); setErr("");
     if (!form.name || !form.email || !form.phone || !form.password || !form.confirm) { setErr("Please fill all fields."); return; }
     if (form.password !== form.confirm) { setErr("Passwords do not match."); return; }
     if (form.password.length < 6) { setErr("Password must be at least 6 characters."); return; }
-    if (dbUsers.find(u => u.email.toLowerCase() === form.email.toLowerCase())) { setErr("Email already registered."); return; }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const newUser = { id: uid("u"), name: form.name, email: form.email, phone: form.phone, password: form.password, createdAt: new Date().toISOString() };
-      setDbUsers(prev => [...prev, newUser]);
-      onLogin({ ...newUser, role: "user" });
-      onClose();
-    }, 900);
+    const { data, error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: { data: { name: form.name, phone: form.phone } }
+    });
+    setLoading(false);
+    if (error) { setErr(error.message); return; }
+    onLogin({ id: data.user.id, name: form.name, email: form.email, role: "user" });
+    onClose();
   }
 
   return (
@@ -396,10 +334,10 @@ function AuthModal({ onClose, onLogin, dbUsers, setDbUsers, isAdminLogin }) {
           <div className="auth-left-bg" />
           <div className="auth-left-content">
             <div className="auth-logo-big"><span className="auth-logo-mark">ISO</span></div>
-            <h2 className="auth-tagline">Pakistan's<br/>Premium<br/>Store</h2>
+            <h2 className="auth-tagline">Pakistan's<br />Premium<br />Store</h2>
             <p className="auth-sub-tag">10,000+ happy customers across Pakistan.</p>
             <div className="auth-perks">
-              {["Cash on Delivery","Fast 3–5 Day Delivery","Easy Returns","WhatsApp Support"].map(p => (
+              {["Cash on Delivery", "Fast 3–5 Day Delivery", "Easy Returns", "WhatsApp Support"].map(p => (
                 <div key={p} className="auth-perk"><span className="auth-perk-check">✓</span>{p}</div>
               ))}
             </div>
@@ -415,7 +353,7 @@ function AuthModal({ onClose, onLogin, dbUsers, setDbUsers, isAdminLogin }) {
                 <p className="auth-desc">Restricted access — authorized personnel only</p>
               </div>
               <form onSubmit={handleAdminLogin} className="auth-form">
-                <div className="auth-field-wrap"><label>Username</label><div className="auth-inp-wrap"><span className="auth-inp-ico">👤</span><input className="auth-inp" placeholder="Enter admin username" value={adminForm.username} onChange={e => setAdminForm(p => ({ ...p, username: e.target.value }))} /></div></div>
+                <div className="auth-field-wrap"><label>Email</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="Enter admin email" value={adminForm.email} onChange={e => setAdminForm(p => ({ ...p, email: e.target.value }))} /></div></div>
                 <div className="auth-field-wrap"><label>Password</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔑</span><input className="auth-inp" type={showAdminPass ? "text" : "password"} placeholder="Enter admin password" value={adminForm.password} onChange={e => setAdminForm(p => ({ ...p, password: e.target.value }))} /><button type="button" className="auth-eye" onClick={() => setShowAdminPass(v => !v)}>{showAdminPass ? "🙈" : "👁️"}</button></div></div>
                 {err && <div className="auth-err"><span>⚠️</span>{err}</div>}
                 <button type="submit" className={`auth-submit ${loading ? "loading" : ""}`} disabled={loading}>{loading ? <span className="auth-spinner" /> : "Access Admin Panel →"}</button>
@@ -483,7 +421,7 @@ function CountdownTimer({ saleEndsAt }) {
     <div className="cd-row">
       {[t.h, t.m, t.s].map((val, i) => (
         <React.Fragment key={i}>
-          <div className="cd-box"><span className="cd-num">{val}</span><span className="cd-lbl">{["HRS","MIN","SEC"][i]}</span></div>
+          <div className="cd-box"><span className="cd-num">{val}</span><span className="cd-lbl">{["HRS", "MIN", "SEC"][i]}</span></div>
           {i < 2 && <span className="cd-sep">:</span>}
         </React.Fragment>
       ))}
@@ -624,11 +562,11 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             <span className="hdr-logo-text">ISmallOne</span>
           </button>
           <nav className="hdr-nav desktop-only">
-            {[["home","Home"],["shop","Shop"],["about","About"],["contact","Contact"]].map(([k,l]) => (
-              <button key={k} className={`hdr-nav-btn ${page===k?"active":""}`} onClick={() => navTo(k)}>{l}</button>
+            {[["home", "Home"], ["shop", "Shop"], ["about", "About"], ["contact", "Contact"]].map(([k, l]) => (
+              <button key={k} className={`hdr-nav-btn ${page === k ? "active" : ""}`} onClick={() => navTo(k)}>{l}</button>
             ))}
             {currentUser?.role === "admin" && (
-              <button className={`hdr-nav-btn admin-nav-btn ${page==="admin"?"active":""}`} onClick={() => navTo("admin")}>⚙️ Admin</button>
+              <button className={`hdr-nav-btn admin-nav-btn ${page === "admin" ? "active" : ""}`} onClick={() => navTo("admin")}>⚙️ Admin</button>
             )}
           </nav>
           <div className="hdr-right">
@@ -637,7 +575,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
               <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); setPage("shop"); }} />
             </div>
             <button className="hdr-icon-btn mobile-only" onClick={() => setMobileSearchOpen(v => !v)} aria-label="Search">
-              <span style={{fontSize:"20px"}}>🔍</span>
+              <span style={{ fontSize: "20px" }}>🔍</span>
             </button>
             <button className="hdr-wish-btn" onClick={() => navTo("wishlist")}>
               ♡{wishlistCount > 0 && <span className="hdr-badge">{wishlistCount}</span>}
@@ -681,11 +619,11 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
           <div className="mobile-search-bar">
             <span className="hdr-search-ico">⌕</span>
             <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); setPage("shop"); }} autoFocus />
-            <button onClick={() => setMobileSearchOpen(false)} style={{padding:"0 12px",color:"var(--muted)",fontSize:"18px"}}>✕</button>
+            <button onClick={() => setMobileSearchOpen(false)} style={{ padding: "0 12px", color: "var(--muted)", fontSize: "18px" }}>✕</button>
           </div>
         )}
         <div className="hdr-cats desktop-only">
-          {["Hair Care","Smart Watches","Home Decor","Projectors","Home Essentials","Summer Deals","New Arrivals","Best Sellers","Flash Deals","Accessories","Kitchen","Gifts"].map(c => (
+          {["Hair Care", "Smart Watches", "Home Decor", "Projectors", "Home Essentials", "Summer Deals", "New Arrivals", "Best Sellers", "Flash Deals", "Accessories", "Kitchen", "Gifts"].map(c => (
             <button key={c} className="hdr-cat" onClick={() => navTo("shop")}>{c}</button>
           ))}
         </div>
@@ -701,12 +639,12 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             {currentUser && (
               <div className="mobile-user-card">
                 <div className="hdr-um-av">{currentUser.name[0].toUpperCase()}</div>
-                <div><strong>{currentUser.name}</strong><span>{currentUser.email}</span>{currentUser.role === "admin" && <span className="admin-role-badge" style={{display:"block",marginTop:"4px"}}>Admin</span>}</div>
+                <div><strong>{currentUser.name}</strong><span>{currentUser.email}</span>{currentUser.role === "admin" && <span className="admin-role-badge" style={{ display: "block", marginTop: "4px" }}>Admin</span>}</div>
               </div>
             )}
             <nav className="mobile-nav">
-              {[["home","🏠","Home"],["shop","🛍️","Shop All"],["about","ℹ️","About Us"],["contact","📞","Contact"]].map(([k,ico,l]) => (
-                <button key={k} className={`mobile-nav-btn ${page===k?"active":""}`} onClick={() => navTo(k)}>
+              {[["home", "🏠", "Home"], ["shop", "🛍️", "Shop All"], ["about", "ℹ️", "About Us"], ["contact", "📞", "Contact"]].map(([k, ico, l]) => (
+                <button key={k} className={`mobile-nav-btn ${page === k ? "active" : ""}`} onClick={() => navTo(k)}>
                   <span>{ico}</span><span>{l}</span><span className="mobile-nav-arrow">›</span>
                 </button>
               ))}
@@ -719,7 +657,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             <div className="mobile-menu-divider" />
             <div className="mobile-menu-section-title">Categories</div>
             <div className="mobile-cats-grid">
-              {["Hair Care","Smart Watches","Home Decor","Projectors","Home Essentials","Summer Deals"].map(c => (
+              {["Hair Care", "Smart Watches", "Home Decor", "Projectors", "Home Essentials", "Summer Deals"].map(c => (
                 <button key={c} className="mobile-cat-chip" onClick={() => navTo("shop")}>{c}</button>
               ))}
             </div>
@@ -730,7 +668,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
                 <>
                   <button className="mobile-nav-btn" onClick={() => navTo("cart")}><span>🛒</span><span>My Cart ({cartCount})</span><span className="mobile-nav-arrow">›</span></button>
                   <button className="mobile-nav-btn" onClick={() => navTo("wishlist")}><span>♡</span><span>Wishlist ({wishlistCount})</span><span className="mobile-nav-arrow">›</span></button>
-                  <button className="mobile-nav-btn" style={{color:"#dc2626"}} onClick={() => { onLogout(); setMobileMenuOpen(false); }}><span>🚪</span><span>Sign Out</span><span className="mobile-nav-arrow">›</span></button>
+                  <button className="mobile-nav-btn" style={{ color: "#dc2626" }} onClick={() => { onLogout(); setMobileMenuOpen(false); }}><span>🚪</span><span>Sign Out</span><span className="mobile-nav-arrow">›</span></button>
                 </>
               ) : (
                 <button className="mobile-nav-btn" onClick={() => { onOpenAuth(); setMobileMenuOpen(false); }}><span>👤</span><span>Sign In / Register</span><span className="mobile-nav-arrow">›</span></button>
@@ -739,7 +677,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             <div className="mobile-menu-divider" />
             <div className="mobile-menu-section-title">Help</div>
             <nav className="mobile-nav">
-              {[["track-order","📦","Track Order"],["faq","❓","FAQ"],["shipping-policy","🚚","Shipping Policy"],["returns","🔄","Returns"]].map(([k,ico,l]) => (
+              {[["track-order", "📦", "Track Order"], ["faq", "❓", "FAQ"], ["shipping-policy", "🚚", "Shipping Policy"], ["returns", "🔄", "Returns"]].map(([k, ico, l]) => (
                 <button key={k} className="mobile-nav-btn" onClick={() => navTo(k)}><span>{ico}</span><span>{l}</span><span className="mobile-nav-arrow">›</span></button>
               ))}
             </nav>
@@ -785,7 +723,7 @@ function HeroBanner({ settings, openProduct, products }) {
       <div className="hero-inner">
         <div className="hero-copy">
           <div className="hero-pill"><span className="hero-dot-pulse"></span>Pakistan's #1 Gadget Store</div>
-          <h1 className="hero-h1">Gadgets That <span className="hero-h1-accent">Elevate</span><br/>Your Lifestyle</h1>
+          <h1 className="hero-h1">Gadgets That <span className="hero-h1-accent">Elevate</span><br />Your Lifestyle</h1>
           <p className="hero-p">{settings.heroSubtitle}</p>
           <div className="hero-trust">
             <span className="hero-trust-item">✓ Cash on Delivery</span>
@@ -811,7 +749,7 @@ function HeroBanner({ settings, openProduct, products }) {
           <div className={`hero-img-card hero-card-anim hero-card-${animState}`}>
             {hero?.video ? (
               <video key={hero.video} src={hero.video} autoPlay muted loop playsInline
-                style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} />
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             ) : (
               <Product3DViewer images={hero?.images || []} productName={hero?.name || ""} />
             )}
@@ -838,7 +776,7 @@ function HeroBanner({ settings, openProduct, products }) {
       </div>
       <div className="hero-ribbon">
         <div className="hero-ribbon-track">
-          {["🚚 Free delivery above Rs 3,000","💵 Cash on Delivery","🔄 Easy Returns","⭐ 10,000+ Happy Customers","📦 Fast Dispatch","🇵🇰 Pakistan Wide","🎁 Gift Wrapping Available","🚚 Free delivery above Rs 3,000","💵 Cash on Delivery","🔄 Easy Returns","⭐ 10,000+ Happy Customers","📦 Fast Dispatch","🇵🇰 Pakistan Wide","🎁 Gift Wrapping Available"].map((s, i) => (
+          {["🚚 Free delivery above Rs 3,000", "💵 Cash on Delivery", "🔄 Easy Returns", "⭐ 10,000+ Happy Customers", "📦 Fast Dispatch", "🇵🇰 Pakistan Wide", "🎁 Gift Wrapping Available", "🚚 Free delivery above Rs 3,000", "💵 Cash on Delivery", "🔄 Easy Returns", "⭐ 10,000+ Happy Customers", "📦 Fast Dispatch", "🇵🇰 Pakistan Wide", "🎁 Gift Wrapping Available"].map((s, i) => (
             <span key={i} className="hero-ribbon-item">{s}</span>
           ))}
         </div>
@@ -880,18 +818,18 @@ function CertificationsSection() {
 
 // ─── TICKER ───────────────────────────────────────────────────────────────────
 function TickerBar() {
-  const items = ["⭐ Ayesha from Lahore — Fast delivery!","⭐ Bilal from Karachi — Easy COD.","⭐ Hamza from Islamabad — Product matched perfectly.","⭐ Mariam from Faisalabad — Smooth ordering.","⭐ Sana from Rawalpindi — Great value.","⭐ Usman from Multan — Will order again!"];
+  const items = ["⭐ Ayesha from Lahore — Fast delivery!", "⭐ Bilal from Karachi — Easy COD.", "⭐ Hamza from Islamabad — Product matched perfectly.", "⭐ Mariam from Faisalabad — Smooth ordering.", "⭐ Sana from Rawalpindi — Great value.", "⭐ Usman from Multan — Will order again!"];
   return (
     <div className="ticker">
       <div className="ticker-label">Live Reviews</div>
-      <div className="ticker-track-wrap"><div className="ticker-track">{[...items,...items].map((t, i) => <span key={i} className="ticker-item">{t}</span>)}</div></div>
+      <div className="ticker-track-wrap"><div className="ticker-track">{[...items, ...items].map((t, i) => <span key={i} className="ticker-item">{t}</span>)}</div></div>
     </div>
   );
 }
 
 // ─── TRUST BAR ────────────────────────────────────────────────────────────────
 function TrustBar() {
-  const items = [{ico:"🚚",title:"Free Delivery",sub:"Orders above Rs 3,000"},{ico:"💵",title:"Cash on Delivery",sub:"Available nationwide"},{ico:"🔄",title:"Easy Returns",sub:"7-day return policy"},{ico:"🛡️",title:"Secure Checkout",sub:"100% trusted store"},{ico:"💬",title:"WhatsApp Support",sub:"Quick order help"}];
+  const items = [{ ico: "🚚", title: "Free Delivery", sub: "Orders above Rs 3,000" }, { ico: "💵", title: "Cash on Delivery", sub: "Available nationwide" }, { ico: "🔄", title: "Easy Returns", sub: "7-day return policy" }, { ico: "🛡️", title: "Secure Checkout", sub: "100% trusted store" }, { ico: "💬", title: "WhatsApp Support", sub: "Quick order help" }];
   return (
     <div className="trust-bar">
       {items.map(item => (<div key={item.title} className="trust-item"><span className="trust-ico">{item.ico}</span><div className="trust-text"><strong>{item.title}</strong><span>{item.sub}</span></div></div>))}
@@ -901,12 +839,12 @@ function TrustBar() {
 
 // ─── CATEGORY GRID ────────────────────────────────────────────────────────────
 function CategoryGrid({ setPage }) {
-  const cats = [{name:"Hair Care",emoji:"💆",color:"#FF6B9D",bg:"#fff0f6"},{name:"Smart Watches",emoji:"⌚",color:"#4F7FFF",bg:"#f0f4ff"},{name:"Home Decor",emoji:"🏠",color:"#9B59B6",bg:"#f8f0ff"},{name:"Projectors",emoji:"📽️",color:"#27AE60",bg:"#f0fff5"},{name:"Home Essentials",emoji:"🏡",color:"#E67E22",bg:"#fff8f0"},{name:"Summer Deals",emoji:"☀️",color:"#E74C3C",bg:"#fff5f5"}];
+  const cats = [{ name: "Hair Care", emoji: "💆", color: "#FF6B9D", bg: "#fff0f6" }, { name: "Smart Watches", emoji: "⌚", color: "#4F7FFF", bg: "#f0f4ff" }, { name: "Home Decor", emoji: "🏠", color: "#9B59B6", bg: "#f8f0ff" }, { name: "Projectors", emoji: "📽️", color: "#27AE60", bg: "#f0fff5" }, { name: "Home Essentials", emoji: "🏡", color: "#E67E22", bg: "#fff8f0" }, { name: "Summer Deals", emoji: "☀️", color: "#E74C3C", bg: "#fff5f5" }];
   return (
     <section className="sec cat-sec">
       <div className="sec-head"><div className="eyebrow">Browse by Category</div><h2 className="sec-h2">Shop What You Love</h2><p className="sec-sub">Curated categories with Pakistan's best-selling products</p></div>
       <div className="cat-grid">
-        {cats.map(c => (<button key={c.name} className="cat-card" style={{"--cat-color":c.color,"--cat-bg":c.bg}} onClick={() => setPage("shop")}><div className="cat-icon-wrap"><span className="cat-emo">{c.emoji}</span></div><span className="cat-nm">{c.name}</span><span className="cat-arrow">→</span></button>))}
+        {cats.map(c => (<button key={c.name} className="cat-card" style={{ "--cat-color": c.color, "--cat-bg": c.bg }} onClick={() => setPage("shop")}><div className="cat-icon-wrap"><span className="cat-emo">{c.emoji}</span></div><span className="cat-nm">{c.name}</span><span className="cat-arrow">→</span></button>))}
       </div>
     </section>
   );
@@ -986,7 +924,7 @@ function BrandBanner({ openProduct, product }) {
           <span className="brand-pill">🏆 Editor's Pick</span>
           <h2 className="brand-h2">Premium Quality,<br />Unbeatable Price</h2>
           <p className="brand-p">Hand-picked products, trusted sellers, seamless shopping — from browsing to delivery at your doorstep.</p>
-          <div className="brand-feats">{["30-day satisfaction guarantee","Authentic products only","COD with no extra charges","Delivered across Pakistan"].map(f => (<div key={f} className="brand-feat"><span className="feat-check">✓</span> {f}</div>))}</div>
+          <div className="brand-feats">{["30-day satisfaction guarantee", "Authentic products only", "COD with no extra charges", "Delivered across Pakistan"].map(f => (<div key={f} className="brand-feat"><span className="feat-check">✓</span> {f}</div>))}</div>
           <button className="btn-dark-lg" onClick={() => openProduct(product)}>Shop This Deal →</button>
         </div>
         <div className="brand-visual">
@@ -1011,7 +949,7 @@ function PromoStrip({ setPage }) {
 
 // ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
 function Testimonials() {
-  const data = [{name:"Ayesha K.",city:"Lahore",text:"Super fast delivery! Product was exactly as shown. Will order again.",rating:5},{name:"Muhammad B.",city:"Karachi",text:"Best online store in Pakistan. COD made it easy and WhatsApp support is amazing.",rating:5},{name:"Sana A.",city:"Islamabad",text:"Got a great deal on the smartwatch. Quality exceeded my expectations!",rating:5},{name:"Hamza R.",city:"Faisalabad",text:"Packaging was excellent. Arrived in perfect condition within 4 days.",rating:4},{name:"Fatima M.",city:"Rawalpindi",text:"Ordered the moon lamp as a gift — recipient loved it!",rating:5},{name:"Ali Z.",city:"Multan",text:"Top-notch store. Fair prices and smooth checkout. Highly recommend!",rating:5}];
+  const data = [{ name: "Ayesha K.", city: "Lahore", text: "Super fast delivery! Product was exactly as shown. Will order again.", rating: 5 }, { name: "Muhammad B.", city: "Karachi", text: "Best online store in Pakistan. COD made it easy and WhatsApp support is amazing.", rating: 5 }, { name: "Sana A.", city: "Islamabad", text: "Got a great deal on the smartwatch. Quality exceeded my expectations!", rating: 5 }, { name: "Hamza R.", city: "Faisalabad", text: "Packaging was excellent. Arrived in perfect condition within 4 days.", rating: 4 }, { name: "Fatima M.", city: "Rawalpindi", text: "Ordered the moon lamp as a gift — recipient loved it!", rating: 5 }, { name: "Ali Z.", city: "Multan", text: "Top-notch store. Fair prices and smooth checkout. Highly recommend!", rating: 5 }];
   return (
     <section className="testi-sec">
       <div className="sec-head sec-centered"><div className="eyebrow">What Customers Say</div><h2 className="sec-h2">Loved Across Pakistan 🇵🇰</h2><p className="sec-sub sec-sub-center">Real reviews from real customers across every city</p></div>
@@ -1022,11 +960,11 @@ function Testimonials() {
 
 // ─── STATS SECTION ────────────────────────────────────────────────────────────
 function StatsSection() {
-  const stats = [{num:"10K+",label:"Happy Customers",ico:"😊"},{num:"500+",label:"Daily Orders",ico:"📦"},{num:"4.8",label:"Average Rating",ico:"⭐"},{num:"3",label:"Day Delivery",ico:"🚚"},{num:"100",label:"% Authentic",ico:"✅"},{num:"7",label:"Day Returns",ico:"🔄"}];
+  const stats = [{ num: "10K+", label: "Happy Customers", ico: "😊" }, { num: "500+", label: "Daily Orders", ico: "📦" }, { num: "4.8", label: "Average Rating", ico: "⭐" }, { num: "3", label: "Day Delivery", ico: "🚚" }, { num: "100", label: "% Authentic", ico: "✅" }, { num: "7", label: "Day Returns", ico: "🔄" }];
   return (
     <section className="stats-sec">
       <div className="stats-inner">
-        <div className="sec-head sec-centered"><div className="eyebrow" style={{color:"rgba(255,255,255,0.7)"}}>Our Numbers</div><h2 className="sec-h2" style={{color:"white"}}>Pakistan Trusts ISmallOne</h2></div>
+        <div className="sec-head sec-centered"><div className="eyebrow" style={{ color: "rgba(255,255,255,0.7)" }}>Our Numbers</div><h2 className="sec-h2" style={{ color: "white" }}>Pakistan Trusts ISmallOne</h2></div>
         <div className="stats-grid">{stats.map(s => (<div key={s.label} className="stat-card"><span className="stat-ico">{s.ico}</span><strong className="stat-num"><AnimatedCounter target={s.num} duration={2000} /></strong><span className="stat-label">{s.label}</span></div>))}</div>
       </div>
     </section>
@@ -1099,10 +1037,10 @@ function HomePage({ settings, products, wishlist, toggleWishlist, openProduct, a
 function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, addToCart }) {
   const [sortBy, setSortBy] = useState("featured");
   const [cat, setCat] = useState("All");
-  const cats = ["All","Hair Care","Smart Watches","Home Decor","Projectors","Home Essentials","Summer Deals"];
+  const cats = ["All", "Hair Care", "Smart Watches", "Home Decor", "Projectors", "Home Essentials", "Summer Deals"];
   const filtered = useMemo(() => {
     let list = [...products];
-    if (search.trim()) list = list.filter(p => [p.name,p.category,p.shortDescription].join(" ").toLowerCase().includes(search.toLowerCase()));
+    if (search.trim()) list = list.filter(p => [p.name, p.category, p.shortDescription].join(" ").toLowerCase().includes(search.toLowerCase()));
     if (cat !== "All") list = list.filter(p => p.category === cat);
     if (sortBy === "price-low") list.sort((a, b) => a.price - b.price);
     if (sortBy === "price-high") list.sort((a, b) => b.price - a.price);
@@ -1171,7 +1109,7 @@ function ProductPage({ settings, product, addToCart, buyNow }) {
               {show3d ? (
                 <Product3DViewer images={product.images} productName={product.name} />
               ) : currentMedia?.type === "video" ? (
-                <video key={currentMedia.src} src={currentMedia.src} autoPlay muted loop playsInline style={{width:"100%",height:"100%",maxHeight:"500px",objectFit:"contain",background:"#000",borderRadius:"var(--r-xl)"}} />
+                <video key={currentMedia.src} src={currentMedia.src} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", maxHeight: "500px", objectFit: "contain", background: "#000", borderRadius: "var(--r-xl)" }} />
               ) : (
                 <img className="pdp-main-img" src={currentMedia?.src} alt={product.name} />
               )}
@@ -1186,7 +1124,7 @@ function ProductPage({ settings, product, addToCart, buyNow }) {
                   <button key={i} className={`pdp-thumb ${mediaIdx === i ? "active" : ""}`}
                     onClick={() => { setMediaIdx(i); clearInterval(autoSlideRef.current); }}>
                     {item.type === "video"
-                      ? <div style={{width:"100%",height:"100%",background:"#000",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"22px"}}>▶</div>
+                      ? <div style={{ width: "100%", height: "100%", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" }}>▶</div>
                       : <img src={item.src} alt="" />
                     }
                   </button>
@@ -1251,7 +1189,7 @@ function CartPage({ cart, setPage, updateCartQty, removeFromCart, subtotal, ship
     <main><section className="sec">
       <div className="sec-head"><div className="eyebrow">Shopping Cart</div><h1 className="sec-h2">Your Cart</h1><p className="sec-sub">{cart.length} item{cart.length !== 1 ? "s" : ""}</p></div>
       {!cart.length ? (
-        <div className="empty-state"><span className="empty-ico">🛒</span><h3>Your cart is empty</h3><p>Add some products to get started.</p><button className="btn-red-lg" onClick={() => setPage("shop")} style={{marginTop:"16px"}}>Browse Products</button></div>
+        <div className="empty-state"><span className="empty-ico">🛒</span><h3>Your cart is empty</h3><p>Add some products to get started.</p><button className="btn-red-lg" onClick={() => setPage("shop")} style={{ marginTop: "16px" }}>Browse Products</button></div>
       ) : (
         <div className="cart-layout">
           <div className="cart-items">
@@ -1292,11 +1230,11 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder }) {
         <div className="checkout-form-card">
           <h3>🚚 Delivery Details</h3>
           <div className="checkout-grid">
-            <input className="field" placeholder="Full Name *" value={form.name} onChange={e => setForm(p => ({...p,name:e.target.value}))} />
-            <input className="field" placeholder="Phone Number *" value={form.phone} onChange={e => setForm(p => ({...p,phone:e.target.value}))} />
-            <input className="field" placeholder="City *" value={form.city} onChange={e => setForm(p => ({...p,city:e.target.value}))} />
-            <input className="field" placeholder="Complete Address *" value={form.address} onChange={e => setForm(p => ({...p,address:e.target.value}))} />
-            <textarea className="field field-area span2" placeholder="Order notes (optional)" value={form.notes} onChange={e => setForm(p => ({...p,notes:e.target.value}))} />
+            <input className="field" placeholder="Full Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+            <input className="field" placeholder="Phone Number *" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            <input className="field" placeholder="City *" value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
+            <input className="field" placeholder="Complete Address *" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
+            <textarea className="field field-area span2" placeholder="Order notes (optional)" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           </div>
           <div className="cod-box"><strong>💵 Payment: Cash on Delivery</strong><p>Pay when your order arrives. No advance needed.</p></div>
         </div>
@@ -1323,13 +1261,13 @@ function ConfirmationPage({ order, setPage }) {
 
 // ─── ABOUT PAGE ───────────────────────────────────────────────────────────────
 function AboutPage() {
-  const cards = [{ico:"🎯",title:"Our Mission",text:"To bring premium quality gadgets and lifestyle products to Pakistani consumers at fair prices with a seamless shopping experience."},{ico:"🏆",title:"Why Choose Us",text:"100% authentic products, cash on delivery, fast nationwide shipping, and dedicated WhatsApp customer support 7 days a week."},{ico:"📦",title:"Fast Delivery",text:"We dispatch within 24 hours and deliver across Pakistan in 3–5 business days."},{ico:"💚",title:"Customer First",text:"Over 10,000 satisfied customers and counting. We prioritize your satisfaction with easy returns."}];
+  const cards = [{ ico: "🎯", title: "Our Mission", text: "To bring premium quality gadgets and lifestyle products to Pakistani consumers at fair prices with a seamless shopping experience." }, { ico: "🏆", title: "Why Choose Us", text: "100% authentic products, cash on delivery, fast nationwide shipping, and dedicated WhatsApp customer support 7 days a week." }, { ico: "📦", title: "Fast Delivery", text: "We dispatch within 24 hours and deliver across Pakistan in 3–5 business days." }, { ico: "💚", title: "Customer First", text: "Over 10,000 satisfied customers and counting. We prioritize your satisfaction with easy returns." }];
   return (<main><section className="sec"><div className="sec-head sec-centered"><div className="eyebrow">Our Story</div><h1 className="sec-h2">About ISmallOne PK</h1><p className="sec-sub sec-sub-center">Building Pakistan's most trusted gadget store</p></div><div className="about-grid">{cards.map(c => (<div key={c.title} className="about-card"><span className="about-ico">{c.ico}</span><h3>{c.title}</h3><p>{c.text}</p></div>))}</div></section></main>);
 }
 
 // ─── CONTACT PAGE ─────────────────────────────────────────────────────────────
 function ContactPage({ settings }) {
-  return (<main><section className="sec"><div className="sec-head"><div className="eyebrow">Get in Touch</div><h1 className="sec-h2">Contact Us</h1><p className="sec-sub">We're here 7 days a week</p></div><div className="contact-layout"><div className="contact-info"><h3>Support Details</h3>{[{ico:"📱",title:"WhatsApp",val:`+${settings.whatsappNumber}`},{ico:"✉️",title:"Email",val:settings.supportEmail},{ico:"🕐",title:"Hours",val:"Monday to Saturday, 10am – 8pm"},{ico:"🚚",title:"Delivery",val:"3–5 working days nationwide"},{ico:"💵",title:"Payment",val:"Cash on Delivery available"}].map(i => (<div key={i.title} className="contact-item"><span className="ci-ico">{i.ico}</span><div><strong>{i.title}</strong><p>{i.val}</p></div></div>))}</div><div className="contact-form"><h3>Send a Message</h3><input className="field" placeholder="Your Name" /><input className="field" placeholder="Phone Number" /><input className="field" placeholder="Email Address" /><textarea className="field field-area" placeholder="Your Message" /><button className="btn-red-lg">Send Message</button></div></div></section></main>);
+  return (<main><section className="sec"><div className="sec-head"><div className="eyebrow">Get in Touch</div><h1 className="sec-h2">Contact Us</h1><p className="sec-sub">We're here 7 days a week</p></div><div className="contact-layout"><div className="contact-info"><h3>Support Details</h3>{[{ ico: "📱", title: "WhatsApp", val: `+${settings.whatsappNumber}` }, { ico: "✉️", title: "Email", val: settings.supportEmail }, { ico: "🕐", title: "Hours", val: "Monday to Saturday, 10am – 8pm" }, { ico: "🚚", title: "Delivery", val: "3–5 working days nationwide" }, { ico: "💵", title: "Payment", val: "Cash on Delivery available" }].map(i => (<div key={i.title} className="contact-item"><span className="ci-ico">{i.ico}</span><div><strong>{i.title}</strong><p>{i.val}</p></div></div>))}</div><div className="contact-form"><h3>Send a Message</h3><input className="field" placeholder="Your Name" /><input className="field" placeholder="Phone Number" /><input className="field" placeholder="Email Address" /><textarea className="field field-area" placeholder="Your Message" /><button className="btn-red-lg">Send Message</button></div></div></section></main>);
 }
 
 // ─── POLICY PAGES ─────────────────────────────────────────────────────────────
@@ -1392,9 +1330,8 @@ function TermsPage() {
   return <PolicyPage title="Terms & Conditions" icon="📜" content={content} />;
 }
 
-function FAQPage({ db }) {
+function FAQPage({ faqs }) {
   const [open, setOpen] = useState(null);
-  const faqs = db.siteSettings?.faqItems || [];
   return (
     <main><section className="sec">
       <div className="sec-head sec-centered"><div className="eyebrow">Help Center</div><h1 className="sec-h2">Frequently Asked Questions</h1><p className="sec-sub sec-sub-center">Everything you need to know about shopping at ISmallOne</p></div>
@@ -1421,9 +1358,9 @@ function TrackOrderPage() {
         <div className="track-card">
           <div className="track-icon">📦</div>
           <h3>Enter Your Details</h3>
-          <input className="field" placeholder="Order ID (e.g., ISO-123456)" value={orderId} onChange={e => setOrderId(e.target.value)} style={{marginBottom:"12px"}} />
-          <input className="field" placeholder="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} style={{marginBottom:"16px"}} />
-          <button className="btn-red-lg" style={{width:"100%"}} onClick={() => setSearched(true)}>Track Order</button>
+          <input className="field" placeholder="Order ID (e.g., ISO-123456)" value={orderId} onChange={e => setOrderId(e.target.value)} style={{ marginBottom: "12px" }} />
+          <input className="field" placeholder="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} style={{ marginBottom: "16px" }} />
+          <button className="btn-red-lg" style={{ width: "100%" }} onClick={() => setSearched(true)}>Track Order</button>
           {searched && (
             <div className="track-result">
               <div className="track-timeline">
@@ -1432,7 +1369,7 @@ function TrackOrderPage() {
                 <div className="track-step active"><div className="track-step-dot" /><div className="track-step-info"><strong>Dispatched</strong><span>Out for delivery</span></div></div>
                 <div className="track-step"><div className="track-step-dot" /><div className="track-step-info"><strong>Delivered</strong><span>Awaiting delivery</span></div></div>
               </div>
-              <div className="track-wa"><p>For real-time updates, contact us on WhatsApp:</p><a href="https://wa.me/923008631809" target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{marginTop:"10px"}}>📱 WhatsApp Support</a></div>
+              <div className="track-wa"><p>For real-time updates, contact us on WhatsApp:</p><a href="https://wa.me/923008631809" target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{ marginTop: "10px" }}>📱 WhatsApp Support</a></div>
             </div>
           )}
         </div>
@@ -1511,7 +1448,7 @@ function AdminProductForm({ onAdd }) {
     setImages(prev => prev.filter((_, idx) => idx !== i));
   }
 
- function validate() {
+  function validate() {
     const errs = {};
     if (!form.name.trim()) errs.name = "Product name is required";
     if (!form.price || isNaN(Number(form.price))) errs.price = "Valid price required";
@@ -1536,7 +1473,7 @@ function AdminProductForm({ onAdd }) {
     setErrors({});
   }
 
-  const categories = ["Hair Care","Smart Watches","Home Decor","Projectors","Home Essentials","Summer Deals","Accessories","Kitchen","Gifts"];
+  const categories = ["Hair Care", "Smart Watches", "Home Decor", "Projectors", "Home Essentials", "Summer Deals", "Accessories", "Kitchen", "Gifts"];
 
   return (
     <div className="apf-wrap">
@@ -1702,42 +1639,87 @@ function AdminProductForm({ onAdd }) {
         disabled={uploadingImages || uploadingVideo}
         style={{ width: "100%", justifyContent: "center", opacity: (uploadingImages || uploadingVideo) ? 0.6 : 1 }}>
         {uploadingImages ? "⬆️ Uploading images..." :
-         uploadingVideo ? "⬆️ Uploading video..." :
-         "✓ Add Product"}
+          uploadingVideo ? "⬆️ Uploading video..." :
+            "✓ Add Product"}
       </button>
     </div>
   );
 }
 // ─── ADMIN PAGE ───────────────────────────────────────────────────────────────
-function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, currentUser, onOpenAdminAuth ,showToast}) {
+function AdminPage({
+  products,
+  orders,
+  settings,
+  setSettings,
+  coupons,
+  setCoupons,
+  faqs,
+  setFaqs,
+  addProduct,
+  deleteProduct,
+  updateOrderStatus,
+  currentUser,
+  onOpenAdminAuth,
+  showToast,
+}) {
   const [form, setForm] = useState({ name: "", category: "", price: "", compareAtPrice: "", image: "" });
   const [activeTab, setActiveTab] = useState("dashboard");
   const [editSettings, setEditSettings] = useState(false);
-  const [settingsForm, setSettingsForm] = useState(db.settings || {});
+  const [settingsForm, setSettingsForm] = useState(settings || {});
   const [couponForm, setCouponForm] = useState({ code: "", type: "percent", value: "" });
   const [faqForm, setFaqForm] = useState({ q: "", a: "" });
 
   if (!currentUser || currentUser.role !== "admin") {
-    return (<main><section className="sec"><div className="admin-locked"><div className="admin-lock-ico">🔐</div><h2>Admin Access Required</h2><p>This area is restricted to authorized administrators only.</p><button className="btn-red-lg" onClick={onOpenAdminAuth} style={{marginTop:"24px"}}>Admin Login →</button></div></section></main>);
+    return (<main><section className="sec"><div className="admin-locked"><div className="admin-lock-ico">🔐</div><h2>Admin Access Required</h2><p>This area is restricted to authorized administrators only.</p><button className="btn-red-lg" onClick={onOpenAdminAuth} style={{ marginTop: "24px" }}>Admin Login →</button></div></section></main>);
   }
 
-  const rev = db.orders.reduce((s, o) => s + o.total, 0);
-  const pendingOrders = db.orders.filter(o => o.status === "Pending").length;
-  const tabs = [{ id: "dashboard", label: "📊 Dashboard" },{ id: "orders", label: "📦 Orders" },{ id: "products", label: "🛍️ Products" },{ id: "users", label: "👥 Users" },{ id: "coupons", label: "🎫 Coupons" },{ id: "settings", label: "⚙️ Settings" },{ id: "faq", label: "❓ FAQ" }];
+  const rev = orders.reduce((s, o) => s + Number(o.total || 0), 0);
+  const pendingOrders = orders.filter(o => o.status === "Pending").length;
+  const tabs = [{ id: "dashboard", label: "📊 Dashboard" }, { id: "orders", label: "📦 Orders" }, { id: "products", label: "🛍️ Products" }, { id: "users", label: "👥 Users" }, { id: "coupons", label: "🎫 Coupons" }, { id: "settings", label: "⚙️ Settings" }, { id: "faq", label: "❓ FAQ" }];
 
-  function saveSettings() { setDb(p => ({ ...p, settings: { ...p.settings, ...settingsForm } })); setEditSettings(false); }
-  function addCoupon() {
+  useEffect(() => {
+    setSettingsForm(settings || {});
+  }, [settings]);
+
+  function saveSettings() { setSettings(prev => ({ ...prev, ...settingsForm })); setEditSettings(false); }
+  async function handleAddCoupon() {
     if (!couponForm.code || !couponForm.value) return;
-    setDb(p => ({ ...p, coupons: [...(p.coupons || []), { code: couponForm.code.toUpperCase(), type: couponForm.type, value: Number(couponForm.value) }] }));
+    try {
+      const saved = await addCoupon({
+        code: couponForm.code.toUpperCase(),
+        type: couponForm.type,
+        value: Number(couponForm.value),
+      });
+      setCoupons((prev) => [...prev, saved || { code: couponForm.code.toUpperCase(), type: couponForm.type, value: Number(couponForm.value) }]);
+    } catch {
+      setCoupons((prev) => [...prev, { code: couponForm.code.toUpperCase(), type: couponForm.type, value: Number(couponForm.value) }]);
+    }
     setCouponForm({ code: "", type: "percent", value: "" });
   }
-  function deleteCoupon(code) { setDb(p => ({ ...p, coupons: p.coupons.filter(c => c.code !== code) })); }
-  function addFaq() {
+  async function removeCoupon(code) {
+    const existing = coupons.find((c) => c.code === code);
+    try {
+      if (existing?.id) await deleteCoupon(existing.id);
+    } catch { }
+    setCoupons((prev) => prev.filter((c) => c.code !== code));
+  }
+  async function addFaqItem() {
     if (!faqForm.q || !faqForm.a) return;
-    setDb(p => ({ ...p, siteSettings: { ...p.siteSettings, faqItems: [...(p.siteSettings?.faqItems || []), faqForm] } }));
+    try {
+      const saved = await addFaq({ q: faqForm.q, a: faqForm.a, question: faqForm.q, answer: faqForm.a });
+      setFaqs((prev) => [...prev, saved || faqForm]);
+    } catch {
+      setFaqs((prev) => [...prev, faqForm]);
+    }
     setFaqForm({ q: "", a: "" });
   }
-  function deleteFaq(i) { setDb(p => ({ ...p, siteSettings: { ...p.siteSettings, faqItems: p.siteSettings.faqItems.filter((_, idx) => idx !== i) } })); }
+  async function removeFaq(i) {
+    const item = faqs[i];
+    try {
+      if (item?.id) await deleteFaq(item.id);
+    } catch { }
+    setFaqs((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   return (
     <main><section className="sec">
@@ -1749,35 +1731,35 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
       {activeTab === "dashboard" && (
         <>
           <div className="admin-stats">
-            <div className="admin-stat"><strong>{db.products.length}</strong><span>Products</span></div>
-            <div className="admin-stat"><strong>{db.orders.length}</strong><span>Orders</span></div>
+            <div className="admin-stat"><strong>{products.length}</strong><span>Products</span></div>
+            <div className="admin-stat"><strong>{orders.length}</strong><span>Orders</span></div>
             <div className="admin-stat red"><strong>{money(rev)}</strong><span>Revenue</span></div>
-            <div className="admin-stat"><strong>{db.users?.length || 0}</strong><span>Users</span></div>
+            <div className="admin-stat"><strong>{[].length || 0}</strong><span>Users</span></div>
             <div className="admin-stat"><strong>{pendingOrders}</strong><span>Pending</span></div>
-            <div className="admin-stat"><strong>{db.coupons?.length || 0}</strong><span>Coupons</span></div>
+            <div className="admin-stat"><strong>{coupons?.length || 0}</strong><span>Coupons</span></div>
           </div>
           <div className="admin-quick-stats">
-            <div className="qs-card"><span>📦 Most Sold</span><strong>{db.products.sort((a,b)=>b.soldCount-a.soldCount)[0]?.name || "—"}</strong></div>
-            <div className="qs-card"><span>⭐ Top Rated</span><strong>{db.products.sort((a,b)=>b.rating-a.rating)[0]?.name || "—"}</strong></div>
-            <div className="qs-card"><span>📋 Latest Order</span><strong>{db.orders[0]?.orderId || "No orders yet"}</strong></div>
+            <div className="qs-card"><span>📦 Most Sold</span><strong>{[...products].sort((a, b) => Number(b.soldCount || b.sold_count || 0) - Number(a.soldCount || a.sold_count || 0))[0]?.name || "—"}</strong></div>
+            <div className="qs-card"><span>⭐ Top Rated</span><strong>{[...products].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0))[0]?.name || "—"}</strong></div>
+            <div className="qs-card"><span>📋 Latest Order</span><strong>{orders[0]?.orderId || orders[0]?.order_id || "No orders yet"}</strong></div>
           </div>
         </>
       )}
 
       {activeTab === "orders" && (
         <div className="admin-card">
-          <h3>All Orders ({db.orders.length})</h3>
-          <div className="orders-list">{db.orders.length ? db.orders.map(o => (
-            <div key={o.orderId} className="order-row">
-              <div><strong>{o.orderId}</strong><span>{o.customer?.name} · {o.customer?.city} · {money(o.total)}</span><span style={{fontSize:"11px",color:"#9ca3af"}}>{formatDate(o.createdAt)}</span></div>
+          <h3>All Orders ({orders.length})</h3>
+          <div className="orders-list">{orders.length ? orders.map(o => (
+            <div key={o.orderId || o.order_id || o.id} className="order-row">
+              <div><strong>{o.orderId || o.order_id || o.id}</strong><span>{o.customer?.name || o.customer_name} · {o.customer?.city || o.city} · {money(o.total)}</span><span style={{ fontSize: "11px", color: "#9ca3af" }}>{formatDate(o.createdAt || o.created_at)}</span></div>
               <div className="order-acts">
                 <span className={`o-status o-${(o.status || "").toLowerCase()}`}>{o.status}</span>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId, "Confirmed")}>Confirm</button>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId, "Shipped")}>Ship</button>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId, "Delivered")} style={{background:"#16a34a"}}>Deliver</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Confirmed")}>Confirm</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Shipped")}>Ship</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Delivered")} style={{ background: "#16a34a" }}>Deliver</button>
               </div>
             </div>
-          )) : <div style={{padding:"40px",color:"#888",textAlign:"center"}}>No orders yet.</div>}</div>
+          )) : <div style={{ padding: "40px", color: "#888", textAlign: "center" }}>No orders yet.</div>}</div>
         </div>
       )}
 
@@ -1792,9 +1774,9 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
               }}
             />
           </div>
-          <div className="admin-card" style={{overflowY:"auto",maxHeight:"600px"}}>
-            <h3>Products ({db.products.length})</h3>
-            <div className="admin-pgrid">{db.products.map(p => (
+          <div className="admin-card" style={{ overflowY: "auto", maxHeight: "600px" }}>
+            <h3>Products ({products.length})</h3>
+            <div className="admin-pgrid">{products.map(p => (
               <div key={p.id} className="admin-pcard">
                 {p.video ? (
                   <video src={p.video} className="admin-pimg" muted playsInline />
@@ -1805,7 +1787,7 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
                   <strong>{p.name}</strong>
                   <span>{p.category}</span>
                   <span className="admin-pprice">{money(p.price)}</span>
-                  <span style={{fontSize:"11px",color:"#9ca3af"}}>
+                  <span style={{ fontSize: "11px", color: "#9ca3af" }}>
                     {p.images?.length || 0} image{p.images?.length !== 1 ? "s" : ""}
                     {p.video ? " · 🎥 video" : ""}
                   </span>
@@ -1819,13 +1801,8 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
 
       {activeTab === "users" && (
         <div className="admin-card">
-          <h3>Registered Users ({db.users?.length || 0})</h3>
-          {db.users?.length ? (
-            <div className="users-table">
-              <div className="users-thead"><span>Name</span><span>Email</span><span>Phone</span><span>Joined</span></div>
-              {db.users.map(u => (<div key={u.id} className="users-row"><span>{u.name}</span><span>{u.email}</span><span>{u.phone}</span><span>{formatDate(u.createdAt)}</span></div>))}
-            </div>
-          ) : <div style={{padding:"40px",color:"#888",textAlign:"center"}}>No registered users yet.</div>}
+          <h3>Registered Users ({[].length || 0})</h3>
+          <div style={{ padding: "40px", color: "#888", textAlign: "center" }}>No registered users yet.</div>
         </div>
       )}
 
@@ -1833,18 +1810,18 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
         <div className="admin-layout">
           <div className="admin-card">
             <h3>Add Coupon</h3>
-            <input className="field" placeholder="Coupon Code (e.g. SAVE20)" value={couponForm.code} onChange={e => setCouponForm(p => ({...p,code:e.target.value}))} style={{marginBottom:"10px"}} />
-            <select className="field" value={couponForm.type} onChange={e => setCouponForm(p => ({...p,type:e.target.value}))} style={{marginBottom:"10px"}}><option value="percent">Percentage Off</option><option value="flat">Flat Discount (Rs)</option></select>
-            <input className="field" placeholder="Value (e.g. 10 for 10%)" value={couponForm.value} onChange={e => setCouponForm(p => ({...p,value:e.target.value}))} style={{marginBottom:"16px"}} />
-            <button className="btn-red-lg" onClick={addCoupon}>Add Coupon</button>
+            <input className="field" placeholder="Coupon Code (e.g. SAVE20)" value={couponForm.code} onChange={e => setCouponForm(p => ({ ...p, code: e.target.value }))} style={{ marginBottom: "10px" }} />
+            <select className="field" value={couponForm.type} onChange={e => setCouponForm(p => ({ ...p, type: e.target.value }))} style={{ marginBottom: "10px" }}><option value="percent">Percentage Off</option><option value="flat">Flat Discount (Rs)</option></select>
+            <input className="field" placeholder="Value (e.g. 10 for 10%)" value={couponForm.value} onChange={e => setCouponForm(p => ({ ...p, value: e.target.value }))} style={{ marginBottom: "16px" }} />
+            <button className="btn-red-lg" onClick={handleAddCoupon}>Add Coupon</button>
           </div>
           <div className="admin-card">
-            <h3>Active Coupons ({db.coupons?.length || 0})</h3>
-            <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
-              {(db.coupons || []).map(c => (
-                <div key={c.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-soft)",padding:"12px 16px",borderRadius:"var(--r)",border:"1.5px solid var(--border)"}}>
-                  <div><strong style={{fontSize:"16px",fontFamily:"var(--font-head)"}}>{c.code}</strong><span style={{marginLeft:"12px",color:"var(--muted)",fontSize:"13px"}}>{c.type === "percent" ? `${c.value}% off` : `Rs ${c.value} off`}</span></div>
-                  <button onClick={() => deleteCoupon(c.code)} style={{background:"#fee2e2",color:"var(--red)",padding:"6px 14px",borderRadius:"8px",fontSize:"12px",fontWeight:"700"}}>Remove</button>
+            <h3>Active Coupons ({coupons?.length || 0})</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {(coupons || []).map(c => (
+                <div key={c.code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-soft)", padding: "12px 16px", borderRadius: "var(--r)", border: "1.5px solid var(--border)" }}>
+                  <div><strong style={{ fontSize: "16px", fontFamily: "var(--font-head)" }}>{c.code}</strong><span style={{ marginLeft: "12px", color: "var(--muted)", fontSize: "13px" }}>{c.type === "percent" ? `${c.value}% off` : `Rs ${c.value} off`}</span></div>
+                  <button onClick={() => removeCoupon(c.code)} style={{ background: "#fee2e2", color: "var(--red)", padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: "700" }}>Remove</button>
                 </div>
               ))}
             </div>
@@ -1854,16 +1831,16 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
 
       {activeTab === "settings" && (
         <div className="admin-card">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
-            <h3 style={{margin:0}}>Store Settings</h3>
-            <button className="btn-red-lg" style={{height:"40px",padding:"0 20px",fontSize:"14px"}} onClick={editSettings ? saveSettings : () => setEditSettings(true)}>{editSettings ? "💾 Save Changes" : "✏️ Edit Settings"}</button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
+            <h3 style={{ margin: 0 }}>Store Settings</h3>
+            <button className="btn-red-lg" style={{ height: "40px", padding: "0 20px", fontSize: "14px" }} onClick={editSettings ? saveSettings : () => setEditSettings(true)}>{editSettings ? "💾 Save Changes" : "✏️ Edit Settings"}</button>
           </div>
           <div className="checkout-grid">
-            {[{key:"storeName",label:"Store Name"},{key:"whatsappNumber",label:"WhatsApp Number"},{key:"supportEmail",label:"Support Email"},{key:"shippingFee",label:"Shipping Fee (Rs)"},{key:"freeShippingThreshold",label:"Free Shipping Threshold (Rs)"}].map(f => (
-              <div key={f.key} className="auth-field-wrap"><label>{f.label}</label><input className="field" value={settingsForm[f.key] || ""} onChange={e => setSettingsForm(p => ({...p,[f.key]:e.target.value}))} disabled={!editSettings} /></div>
+            {[{ key: "storeName", label: "Store Name" }, { key: "whatsappNumber", label: "WhatsApp Number" }, { key: "supportEmail", label: "Support Email" }, { key: "shippingFee", label: "Shipping Fee (Rs)" }, { key: "freeShippingThreshold", label: "Free Shipping Threshold (Rs)" }].map(f => (
+              <div key={f.key} className="auth-field-wrap"><label>{f.label}</label><input className="field" value={settingsForm[f.key] || ""} onChange={e => setSettingsForm(p => ({ ...p, [f.key]: e.target.value }))} disabled={!editSettings} /></div>
             ))}
-            <div className="auth-field-wrap" style={{gridColumn:"1/-1"}}><label>Announcement Bar</label><input className="field" value={settingsForm.announcement || ""} onChange={e => setSettingsForm(p => ({...p,announcement:e.target.value}))} disabled={!editSettings} /></div>
-            <div className="auth-field-wrap" style={{gridColumn:"1/-1"}}><label>Hero Subtitle</label><textarea className="field field-area" value={settingsForm.heroSubtitle || ""} onChange={e => setSettingsForm(p => ({...p,heroSubtitle:e.target.value}))} disabled={!editSettings} /></div>
+            <div className="auth-field-wrap" style={{ gridColumn: "1/-1" }}><label>Announcement Bar</label><input className="field" value={settingsForm.announcement || ""} onChange={e => setSettingsForm(p => ({ ...p, announcement: e.target.value }))} disabled={!editSettings} /></div>
+            <div className="auth-field-wrap" style={{ gridColumn: "1/-1" }}><label>Hero Subtitle</label><textarea className="field field-area" value={settingsForm.heroSubtitle || ""} onChange={e => setSettingsForm(p => ({ ...p, heroSubtitle: e.target.value }))} disabled={!editSettings} /></div>
           </div>
         </div>
       )}
@@ -1872,18 +1849,18 @@ function AdminPage({ db, setDb, addProduct, deleteProduct, updateOrderStatus, cu
         <div className="admin-layout">
           <div className="admin-card">
             <h3>Add FAQ</h3>
-            <input className="field" placeholder="Question" value={faqForm.q} onChange={e => setFaqForm(p => ({...p,q:e.target.value}))} style={{marginBottom:"10px"}} />
-            <textarea className="field field-area" placeholder="Answer" value={faqForm.a} onChange={e => setFaqForm(p => ({...p,a:e.target.value}))} style={{marginBottom:"16px"}} />
-            <button className="btn-red-lg" onClick={addFaq}>Add FAQ</button>
+            <input className="field" placeholder="Question" value={faqForm.q} onChange={e => setFaqForm(p => ({ ...p, q: e.target.value }))} style={{ marginBottom: "10px" }} />
+            <textarea className="field field-area" placeholder="Answer" value={faqForm.a} onChange={e => setFaqForm(p => ({ ...p, a: e.target.value }))} style={{ marginBottom: "16px" }} />
+            <button className="btn-red-lg" onClick={addFaqItem}>Add FAQ</button>
           </div>
           <div className="admin-card">
-            <h3>FAQ Items ({db.siteSettings?.faqItems?.length || 0})</h3>
-            <div style={{display:"flex",flexDirection:"column",gap:"10px",maxHeight:"400px",overflowY:"auto"}}>
-              {(db.siteSettings?.faqItems || []).map((faq, i) => (
-                <div key={i} style={{background:"var(--bg-soft)",padding:"14px",borderRadius:"var(--r)",border:"1.5px solid var(--border)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"10px"}}>
-                    <div><strong style={{display:"block",fontSize:"14px",marginBottom:"4px"}}>{faq.q}</strong><span style={{fontSize:"13px",color:"var(--muted)"}}>{faq.a}</span></div>
-                    <button onClick={() => deleteFaq(i)} style={{background:"#fee2e2",color:"var(--red)",padding:"5px 10px",borderRadius:"6px",fontSize:"11px",fontWeight:"700",flexShrink:0}}>Delete</button>
+            <h3>FAQ Items ({faqs?.length || 0})</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "400px", overflowY: "auto" }}>
+              {(faqs || []).map((faq, i) => (
+                <div key={i} style={{ background: "var(--bg-soft)", padding: "14px", borderRadius: "var(--r)", border: "1.5px solid var(--border)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                    <div><strong style={{ display: "block", fontSize: "14px", marginBottom: "4px" }}>{faq.q || faq.question}</strong><span style={{ fontSize: "13px", color: "var(--muted)" }}>{faq.a || faq.answer}</span></div>
+                    <button onClick={() => removeFaq(i)} style={{ background: "#fee2e2", color: "var(--red)", padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", flexShrink: 0 }}>Delete</button>
                   </div>
                 </div>
               ))}
@@ -2837,25 +2814,47 @@ const CSS = `
 `;
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [db, setDb] = useState(() => loadDb());
+
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [coupons, setCoupons] = useState([]);
+  const [faqs, setFaqs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("home");
   const [search, setSearch] = useState("");
+  const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [lastOrder, setLastOrder] = useState(null);
-  const [currentUser, setCurrentUser] = useState(() => loadAuth());
+  const [currentUser, setCurrentUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [toast, setToast] = useState({ message: "", visible: false });
   const [transitionTrigger, setTransitionTrigger] = useState(0);
-
-  const setDbAndSave = useCallback((updater) => {
-    setDb(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      saveDb(next);
-      return next;
-    });
+  useEffect(() => {
+    async function loadAll() {
+      try {
+        const [prods, ords, sett, coups, faqItems] = await Promise.all([
+          getProducts(),
+          getOrders(),
+          getSettings(),
+          getCoupons(),
+          getFaqs(),
+        ]);
+        setProducts(prods || []);
+        setOrders(ords || []);
+        if (sett) setSettings(sett);
+        setCoupons(coups || []);
+        setFaqs(faqItems || []);
+      } catch (err) {
+        console.error("Failed to load from Supabase:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAll();
   }, []);
 
   const navigate = useCallback((p) => {
@@ -2901,108 +2900,144 @@ export default function App() {
     setWishlist(prev => prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]);
   }, []);
 
-  const placeOrder = useCallback((form) => {
-    if (!form.name || !form.phone || !form.city || !form.address) { showToast("Please fill all required fields!"); return; }
+  const subtotal = (cart || []).reduce(
+    (sum, item) => sum + Number(item?.price || 0) * Number(item?.qty || 0),
+    0
+  );
+  const freeShippingThreshold = Number(
+    settings?.free_shipping_threshold ?? settings?.freeShippingThreshold ?? 3000
+  );
+  const shippingFee = Number(settings?.shipping_fee ?? settings?.shippingFee ?? 199);
+  const shipping = subtotal >= freeShippingThreshold ? 0 : shippingFee;
+  const total = subtotal + shipping;
+  const wishlistItems = products.filter((p) => wishlist.includes(p.id));
+
+
+
+  const placeOrder = useCallback(async (form) => {
+    if (!form.name || !form.phone || !form.city || !form.address) {
+      showToast("Please fill all required fields!"); return;
+    }
     const order = {
-      orderId: `ISO-${Date.now().toString().slice(-6)}`,
+      order_id: `ISO-${Date.now().toString().slice(-6)}`,
       customer: form,
       items: cart,
       subtotal,
       shipping,
       total,
       status: "Pending",
-      createdAt: new Date().toISOString(),
     };
-    setDbAndSave(prev => ({ ...prev, orders: [order, ...prev.orders] }));
-    setLastOrder(order);
-    setCart([]);
-    navigate("confirmation");
-  }, [cart, showToast, setDbAndSave, navigate]);
+    try {
+      const saved = await apiPlaceOrder(order);
+      setOrders(prev => [saved, ...prev]);
+      setLastOrder(saved);
+      setCart([]);
+      navigate("confirmation");
+    } catch (err) {
+      showToast("Failed to place order. Try again.");
+      console.error(err);
+    }
+  }, [cart, subtotal, shipping, total, showToast, navigate]);
 
-  const addProduct = useCallback((form) => {
-  if (!form.name) return;
-  const newProduct = {
-    id: uid("p"),
-    slug: slugify(form.name),
-    name: form.name,
-    category: form.category || "Uncategorized",
-    shortDescription: form.shortDescription || "",
-    description: form.description || "",
-    price: Number(form.price) || 0,
-    compareAtPrice: Number(form.compareAtPrice) || 0,
-    stockLeft: 10,
-    soldCount: 0,
-    featured: false,
-    trending: false,
-    rating: 5,
-    reviewCount: 0,
-    images: form.images || [],           // ← Cloudinary URLs
-    video: form.video || null,           // ← Cloudinary video URL
-    shortSpecs: [],
-    variants: [{ id: uid("v"), label: "Standard", price: Number(form.price) || 0 }],
-    reviews: [],
-  };
-  setDbAndSave(prev => ({ ...prev, products: [...prev.products, newProduct] }));
-}, [setDbAndSave]);
 
-  const deleteProduct = useCallback((id) => {
-    setDbAndSave(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }));
-    showToast("Product deleted.");
-  }, [setDbAndSave, showToast]);
 
-  const updateOrderStatus = useCallback((orderId, status) => {
-    setDbAndSave(prev => ({ ...prev, orders: prev.orders.map(o => o.orderId === orderId ? { ...o, status } : o) }));
-  }, [setDbAndSave]);
+  const addProduct = useCallback(async (form) => {
+    if (!form.name) return;
+    const newProduct = {
+      slug: slugify(form.name),
+      name: form.name,
+      category: form.category || "Uncategorized",
+      short_description: form.shortDescription || "",
+      description: form.description || "",
+      price: Number(form.price) || 0,
+      compare_at_price: Number(form.compareAtPrice) || 0,
+      stock_left: 10,
+      sold_count: 0,
+      featured: false,
+      trending: false,
+      rating: 5,
+      review_count: 0,
+      images: form.images || [],
+      video: form.video || null,
+      short_specs: [],
+      variants: [{ label: "Standard", price: Number(form.price) || 0 }],
+    };
+    try {
+      const saved = await apiAddProduct(newProduct);
+      setProducts(prev => [saved, ...prev]);
+      showToast("Product added!");
+    } catch (err) {
+      showToast("Failed to add product.");
+      console.error(err);
+    }
+  }, [showToast]);
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = subtotal >= db.settings.freeShippingThreshold ? 0 : db.settings.shippingFee;
-  const total = subtotal + shipping;
+  const deleteProduct = useCallback(async (id) => {
+    try {
+      await apiDeleteProduct(id);
+      setProducts(prev => prev.filter(p => p.id !== id));
+      showToast("Product deleted.");
+    } catch (err) {
+      showToast("Failed to delete product.");
+      console.error(err);
+    }
+  }, [showToast]);
 
-  const wishlistItems = db.products.filter(p => wishlist.includes(p.id));
+  const updateOrderStatus = useCallback(async (orderId, status) => {
+    try {
+      await apiUpdateOrderStatus(orderId, status);
+      setOrders(prev => prev.map(o => o.order_id === orderId ? { ...o, status } : o));
+    } catch (err) {
+      showToast("Failed to update order.");
+      console.error(err);
+    }
+  }, [showToast]);
+
+
 
   const renderPage = () => {
     switch (page) {
-      case "home": return <HomePage settings={db.settings} products={db.products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
-      case "shop": return <ShopPage products={db.products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
-      case "product": return currentProduct ? <ProductPage settings={db.settings} product={currentProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
+      case "home": return <HomePage settings={settings} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
+      case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
+      case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
       case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
       case "cart": return <CartPage cart={cart} setPage={navigate} updateCartQty={updateCartQty} removeFromCart={removeFromCart} subtotal={subtotal} shipping={shipping} total={total} />;
       case "checkout": return <CheckoutPage cart={cart} subtotal={subtotal} shipping={shipping} total={total} placeOrder={placeOrder} />;
       case "confirmation": return <ConfirmationPage order={lastOrder} setPage={navigate} />;
       case "about": return <AboutPage />;
-      case "contact": return <ContactPage settings={db.settings} />;
+      case "contact": return <ContactPage settings={settings} />;
       case "shipping-policy": return <ShippingPolicyPage />;
       case "returns": return <ReturnPolicyPage />;
       case "privacy-policy": return <PrivacyPolicyPage />;
       case "terms": return <TermsPage />;
-      case "faq": return <FAQPage db={db} />;
+      case "faq": return <FAQPage faqs={faqs} />;
       case "track-order": return <TrackOrderPage />;
-      case "admin": return <AdminPage db={db} setDb={setDbAndSave} addProduct={addProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast}  />;
-      default: return <HomePage settings={db.settings} products={db.products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
+      case "admin": return <AdminPage products={products} orders={orders} settings={settings} setSettings={setSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
+      default: return <HomePage settings={settings} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
     }
   };
-
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: "16px", fontFamily: "sans-serif" }}>
+      <div style={{ width: "48px", height: "48px", background: "#d90429", borderRadius: "12px", display: "grid", placeItems: "center", color: "white", fontWeight: "900", fontSize: "14px" }}>ISO</div>
+      <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading store...</p>
+    </div>
+  );
   return (
     <>
       <style>{CSS}</style>
       <PageTransition trigger={transitionTrigger} />
-  <Header settings={db.settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={() => { setCurrentUser(null); saveAuth(null); }} />
+      <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
+        await supabase.auth.signOut();
+        setCurrentUser(null);
+      }} />
 
-<div style={{ padding: "20px", textAlign: "center", position: "relative", zIndex: 9999 }}>
-  <button onClick={async () => {
-    const { data, error } = await supabase.from("categories").select("*");
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
-  }}>
-    Test Supabase
-  </button>
-</div>
+
       {renderPage()}
       <SiteFooter setPage={navigate} />
-      <WhatsAppFloat number={db.settings.whatsappNumber} />
-      <LiveActivityFeed products={db.products} />
+      <WhatsAppFloat number={settings.whatsappNumber} />
+      <LiveActivityFeed products={products} />
       <Toast message={toast.message} visible={toast.visible} />
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); saveAuth(user); showToast(`Welcome, ${user.name}!`); }} dbUsers={db.users} setDbUsers={(updater) => setDbAndSave(prev => ({ ...prev, users: typeof updater === "function" ? updater(prev.users) : updater }))} isAdminLogin={isAdminLogin} />}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); showToast(`Welcome, ${user.name}!`); }} dbUsers={[]} setDbUsers={() => { }} isAdminLogin={isAdminLogin} />}
     </>
   );
 }
