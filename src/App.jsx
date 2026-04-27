@@ -2943,32 +2943,35 @@ export default function App() {
 
   const addProduct = useCallback(async (form) => {
     if (!form.name) return;
-    const newProduct = {
-      slug: slugify(form.name),
+
+    const uploadedImages = form.images || [];
+    const videoUrl = form.video || null;
+
+    const product = {
       name: form.name,
-      category: form.category || "Uncategorized",
-      short_description: form.shortDescription || "",
+      price: Number(form.price),
       description: form.description || "",
-      price: Number(form.price) || 0,
-      compare_at_price: Number(form.compareAtPrice) || 0,
-      stock_left: 10,
-      sold_count: 0,
-      featured: false,
-      trending: false,
-      rating: 5,
-      review_count: 0,
-      images: form.images || [],
-      video: form.video || null,
-      short_specs: [],
-      variants: [{ label: "Standard", price: Number(form.price) || 0 }],
+      short_description: form.shortDescription || "",
+      images: uploadedImages || [],
+      video: videoUrl || null,
+      stock_left: Number(form.stock) || 0,
+      category: form.category || "",
     };
+
     try {
-      const saved = await apiAddProduct(newProduct);
-      setProducts(prev => [saved, ...prev]);
+      const { data, error } = await supabase.from("products").insert([product]).select().single();
+
+      if (error) {
+        console.error(error);
+        showToast(error.message || "Failed to add product");
+        return;
+      }
+
+      setProducts(prev => [data, ...prev]);
       showToast("Product added!");
     } catch (err) {
-      showToast("Failed to add product.");
       console.error(err);
+      showToast("Failed to add product");
     }
   }, [showToast]);
 
