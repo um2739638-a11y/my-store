@@ -2,7 +2,7 @@
 
 import { supabase } from "./lib/supabase";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { getProducts, getOrders, getSettings, getCoupons, getFaqs, addProduct as apiAddProduct, deleteProduct as apiDeleteProduct, placeOrder as apiPlaceOrder, updateOrderStatus as apiUpdateOrderStatus } from "./lib/api";
+import { getProducts, getOrders, getSettings, updateSettings, getCoupons, addCoupon, deleteCoupon, getFaqs, addFaq, deleteFaq, addProduct as apiAddProduct, deleteProduct as apiDeleteProduct, placeOrder as apiPlaceOrder, updateOrderStatus as apiUpdateOrderStatus } from "./lib/api";
 
 
 
@@ -21,10 +21,10 @@ const DEFAULT_SETTINGS = {
   heroSubtitle:
     "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 10,000+ happy customers.",
   announcement: "FREE DELIVERY ON ORDERS ABOVE Rs 3,000  •  CASH ON DELIVERY AVAILABLE  •  LIMITED TIME DEALS",
-  supportEmail: "support@ISmallOne.shop",
+  supportEmail: "um2739638@gmail.com",
   whatsappNumber: "923008631809",
-  shippingFee: 199,
-  freeShippingThreshold: 3000,
+  shippingFee: 0,
+  freeShippingThreshold: 0,
   saleEndsAt: getCountdownTarget(),
 };
 
@@ -126,36 +126,7 @@ function AnimatedCounter({ target, duration = 2000 }) {
 }
 
 // ─── PAGE TRANSITION — ISO LOGO + WHITE LINE ──────────────────────────────────
-function PageTransition({ trigger }) {
-  const [active, setActive] = useState(false);
-  const [phase, setPhase] = useState("idle");
 
-  useEffect(() => {
-    if (trigger === 0) return;
-    setPhase("enter");
-    setActive(true);
-    const t1 = setTimeout(() => setPhase("exit"), 900);
-    const t2 = setTimeout(() => { setActive(false); setPhase("idle"); }, 1200);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [trigger]);
-
-  if (!active) return null;
-
-  return (
-    <div className={`pt-overlay pt-${phase}`}>
-      <div className="pt-backdrop" />
-      <div className="pt-center">
-        <div className="pt-logo-ring">
-          <span className="pt-logo-mark">ISO</span>
-        </div>
-        <div className="pt-logo-name">ISmallOne</div>
-        <div className="pt-line-wrap">
-          <div className="pt-line-bar" />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────────
 function LiveActivityFeed({ products }) {
@@ -892,7 +863,13 @@ function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlis
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}>
       <div className="pcard-img-wrap">
-        <button className="pcard-img-btn" onClick={() => onOpen(product)}><img className={`pcard-img ${hov ? "pcard-img-z" : ""}`} src={product.images?.[0]} alt={product.name} /></button>
+        <button className="pcard-img-btn" onClick={() => onOpen(product)}>
+          {product.video ? (
+            <video src={product.video} className={`pcard-img ${hov ? "pcard-img-z" : ""}`} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <img className={`pcard-img ${hov ? "pcard-img-z" : ""}`} src={product.images?.[0]} alt={product.name} />
+          )}
+        </button>
         {off > 0 && <div className="pcard-sale-badge">-{off}%</div>}
         <div className="pcard-hot-badge">🔥 Trending</div>
         <button className={`pcard-wish ${isWishlisted ? "wished" : ""}`} onClick={() => onToggleWishlist(product.id)}>{isWishlisted ? "♥" : "♡"}</button>
@@ -942,7 +919,14 @@ function BrandBanner({ openProduct, product }) {
           <button className="btn-dark-lg" onClick={() => openProduct(product)}>Shop This Deal →</button>
         </div>
         <div className="brand-visual">
-          <div className="brand-img-wrap"><img className="brand-img" src={product?.images?.[0]} alt={product?.name} />{off > 0 && <div className="brand-save">Save {off}%</div>}</div>
+          <div className="brand-img-wrap">
+            {product?.video ? (
+              <video src={product.video} className="brand-img" autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <img className="brand-img" src={product?.images?.[0]} alt={product?.name} />
+            )}
+            {off > 0 && <div className="brand-save">Save {off}%</div>}
+          </div>
           <div className="brand-prod-row"><strong>{product?.name}</strong><span>{money(product?.price)}</span></div>
         </div>
       </div>
@@ -993,7 +977,7 @@ function Newsletter() {
         <div className="nl-ico">🎁</div>
         <h2>Get Exclusive Deals First</h2>
         <p>Join 10,000+ smart shoppers. Flash sales, new arrivals, and WhatsApp-only deals.</p>
-        <div className="nl-form"><input className="nl-inp" placeholder="Enter your phone number or email" /><button className="nl-btn">Subscribe & Save</button></div>
+        <div className="nl-form"><input className="nl-inp" placeholder="Enter your phone number or email" /><button className="nl-btn" onClick={() => alert("Thank you for subscribing!")}>Subscribe & Save</button></div>
         <div className="nl-trust">✓ No spam  ·  ✓ Unsubscribe anytime  ·  ✓ Exclusive deals</div>
       </div>
     </section>
@@ -1253,8 +1237,28 @@ function CartPage({ cart, setPage, updateCartQty, removeFromCart, subtotal, ship
 }
 
 // ─── CHECKOUT PAGE ────────────────────────────────────────────────────────────
-function CheckoutPage({ cart, subtotal, shipping, total, placeOrder }) {
+function CheckoutPage({ cart, subtotal, shipping, total, placeOrder, coupons }) {
   const [form, setForm] = useState({ name: "", phone: "", city: "", address: "", notes: "" });
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+
+  const handleApplyCoupon = () => {
+    setCouponError("");
+    const coupon = (coupons || []).find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+    if (coupon) {
+      setAppliedCoupon(coupon);
+      setCouponCode("");
+    } else {
+      setCouponError("Invalid coupon code.");
+      setAppliedCoupon(null);
+    }
+  };
+
+  const discountAmount = appliedCoupon
+    ? (appliedCoupon.type === "percent" ? (subtotal * appliedCoupon.value / 100) : appliedCoupon.value)
+    : 0;
+
   return (
     <main><section className="sec">
       <div className="sec-head"><div className="eyebrow">Checkout</div><h1 className="sec-h2">Complete Your Order</h1><p className="sec-sub">Cash on Delivery · Fast & Secure</p></div>
@@ -1273,11 +1277,37 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder }) {
         <div className="order-card">
           <h3>Your Order</h3>
           <div className="co-items">{cart.map(item => (<div key={item.id} className="co-row"><img src={item.image} alt={item.name} className="co-img" /><div className="co-info"><span>{item.name}</span><span className="co-var">{item.variantLabel || "Default"} × {item.qty}</span></div><strong>{money(item.price * item.qty)}</strong></div>))}</div>
+
+          <div className="coupon-box" style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                className="field"
+                placeholder="Coupon code"
+                value={couponCode}
+                onChange={e => setCouponCode(e.target.value)}
+                style={{ height: "40px" }}
+              />
+              <button
+                className="btn-red-lg"
+                style={{ height: "40px", padding: "0 16px", fontSize: "13px" }}
+                onClick={handleApplyCoupon}
+              >Apply</button>
+            </div>
+            {couponError && <p style={{ fontSize: "11px", color: "var(--red)", marginTop: "4px" }}>{couponError}</p>}
+            {appliedCoupon && <p style={{ fontSize: "11px", color: "#16a34a", marginTop: "4px" }}>✓ Coupon <strong>{appliedCoupon.code}</strong> applied!</p>}
+          </div>
+
           <div className="sum-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
           <div className="sum-row"><span>Shipping</span><strong>{shipping === 0 ? "FREE" : money(shipping)}</strong></div>
+          {appliedCoupon && (
+            <div className="sum-row" style={{ color: "#16a34a" }}>
+              <span>Discount ({appliedCoupon.code})</span>
+              <strong>-{money(discountAmount)}</strong>
+            </div>
+          )}
           <div className="sum-divider" />
-          <div className="sum-row total"><span>Total</span><strong>{money(total)}</strong></div>
-          <button className="btn-place" onClick={() => placeOrder(form)}>✓ Place Order — {money(total)}</button>
+          <div className="sum-row total"><span>Total</span><strong>{money(Math.max(0, total - discountAmount))}</strong></div>
+          <button className="btn-place" onClick={() => placeOrder({ ...form, coupon: appliedCoupon?.code })}>✓ Place Order — {money(Math.max(0, total - discountAmount))}</button>
         </div>
       </div>
     </section></main>
@@ -1287,7 +1317,7 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder }) {
 // ─── CONFIRMATION PAGE ────────────────────────────────────────────────────────
 function ConfirmationPage({ order, setPage }) {
   return (
-    <main><section className="sec"><div className="confirm-wrap"><div className="confirm-ico">✓</div><h1>Order Placed!</h1><p>We'll contact you on WhatsApp to confirm delivery details.</p>{order && (<div className="confirm-details"><div className="cd-row-info"><span>Order ID</span><strong>{order.orderId}</strong></div><div className="cd-row-info"><span>Date</span><strong>{formatDate(order.createdAt)}</strong></div><div className="cd-row-info"><span>Total</span><strong>{money(order.total)}</strong></div><div className="cd-row-info"><span>Status</span><strong className="status-badge">{order.status}</strong></div></div>)}<div className="confirm-btns"><button className="btn-red-lg" onClick={() => setPage("home")}>Continue Shopping</button><button className="btn-outline-lg" onClick={() => setPage("shop")}>Browse More</button></div></div></section></main>
+    <main><section className="sec"><div className="confirm-wrap"><div className="confirm-ico">✓</div><h1>Order Placed!</h1><p>We'll contact you on WhatsApp to confirm delivery details.</p>{order && (<div className="confirm-details"><div className="cd-row-info"><span>Order ID</span><strong>{order.order_id || order.orderId || order.id}</strong></div><div className="cd-row-info"><span>Date</span><strong>{formatDate(order.createdAt || order.created_at)}</strong></div><div className="cd-row-info"><span>Total</span><strong>{money(order.total)}</strong></div><div className="cd-row-info"><span>Status</span><strong className="status-badge">{order.status}</strong></div></div>)}<div className="confirm-btns"><button className="btn-red-lg" onClick={() => setPage("home")}>Continue Shopping</button><button className="btn-outline-lg" onClick={() => setPage("shop")}>Browse More</button></div></div></section></main>
   );
 }
 
@@ -1299,7 +1329,7 @@ function AboutPage() {
 
 // ─── CONTACT PAGE ─────────────────────────────────────────────────────────────
 function ContactPage({ settings }) {
-  return (<main><section className="sec"><div className="sec-head"><div className="eyebrow">Get in Touch</div><h1 className="sec-h2">Contact Us</h1><p className="sec-sub">We're here 7 days a week</p></div><div className="contact-layout"><div className="contact-info"><h3>Support Details</h3>{[{ ico: "📱", title: "WhatsApp", val: `+${settings.whatsappNumber}` }, { ico: "✉️", title: "Email", val: settings.supportEmail }, { ico: "🕐", title: "Hours", val: "Monday to Saturday, 10am – 8pm" }, { ico: "🚚", title: "Delivery", val: "3–5 working days nationwide" }, { ico: "💵", title: "Payment", val: "Cash on Delivery available" }].map(i => (<div key={i.title} className="contact-item"><span className="ci-ico">{i.ico}</span><div><strong>{i.title}</strong><p>{i.val}</p></div></div>))}</div><div className="contact-form"><h3>Send a Message</h3><input className="field" placeholder="Your Name" /><input className="field" placeholder="Phone Number" /><input className="field" placeholder="Email Address" /><textarea className="field field-area" placeholder="Your Message" /><button className="btn-red-lg">Send Message</button></div></div></section></main>);
+  return (<main><section className="sec"><div className="sec-head"><div className="eyebrow">Get in Touch</div><h1 className="sec-h2">Contact Us</h1><p className="sec-sub">We're here 7 days a week</p></div><div className="contact-layout"><div className="contact-info"><h3>Support Details</h3>{[{ ico: "📱", title: "WhatsApp", val: `+${settings.whatsappNumber}` }, { ico: "✉️", title: "Email", val: settings.supportEmail }, { ico: "🕐", title: "Hours", val: "Monday to Saturday, 10am – 8pm" }, { ico: "🚚", title: "Delivery", val: "3–5 working days nationwide" }, { ico: "💵", title: "Payment", val: "Cash on Delivery available" }].map(i => (<div key={i.title} className="contact-item"><span className="ci-ico">{i.ico}</span><div><strong>{i.title}</strong><p>{i.val}</p></div></div>))}</div><div className="contact-form"><h3>Send a Message</h3><input className="field" placeholder="Your Name" /><input className="field" placeholder="Phone Number" /><input className="field" placeholder="Email Address" /><textarea className="field field-area" placeholder="Your Message" /><button className="btn-red-lg" onClick={() => alert("Message sent! We will contact you soon.")}>Send Message</button></div></div></section></main>);
 }
 
 // ─── POLICY PAGES ─────────────────────────────────────────────────────────────
@@ -1379,7 +1409,7 @@ function FAQPage({ faqs }) {
   );
 }
 
-function TrackOrderPage() {
+function TrackOrderPage({ settings }) {
   const [orderId, setOrderId] = useState("");
   const [phone, setPhone] = useState("");
   const [searched, setSearched] = useState(false);
@@ -1401,7 +1431,7 @@ function TrackOrderPage() {
                 <div className="track-step active"><div className="track-step-dot" /><div className="track-step-info"><strong>Dispatched</strong><span>Out for delivery</span></div></div>
                 <div className="track-step"><div className="track-step-dot" /><div className="track-step-info"><strong>Delivered</strong><span>Awaiting delivery</span></div></div>
               </div>
-              <div className="track-wa"><p>For real-time updates, contact us on WhatsApp:</p><a href="https://wa.me/923008631809" target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{ marginTop: "10px" }}>📱 WhatsApp Support</a></div>
+              <div className="track-wa"><p>For real-time updates, contact us on WhatsApp:</p><a href={`https://wa.me/${settings.whatsappNumber}`} target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{ marginTop: "10px" }}>📱 WhatsApp Support</a></div>
             </div>
           )}
         </div>
@@ -1682,7 +1712,7 @@ function AdminPage({
   products,
   orders,
   settings,
-  setSettings,
+  saveSettings,
   coupons,
   setCoupons,
   faqs,
@@ -1713,7 +1743,14 @@ function AdminPage({
     setSettingsForm(settings || {});
   }, [settings]);
 
-  function saveSettings() { setSettings(prev => ({ ...prev, ...settingsForm })); setEditSettings(false); }
+  async function handleSave() {
+    try {
+      await saveSettings(settingsForm);
+      setEditSettings(false);
+    } catch (err) {
+      console.error("Failed to save settings in AdminPage", err);
+    }
+  }
   async function handleAddCoupon() {
     if (!couponForm.code || !couponForm.value) return;
     try {
@@ -1786,9 +1823,9 @@ function AdminPage({
               <div><strong>{o.orderId || o.order_id || o.id}</strong><span>{o.customer?.name || o.customer_name} · {o.customer?.city || o.city} · {money(o.total)}</span><span style={{ fontSize: "11px", color: "#9ca3af" }}>{formatDate(o.createdAt || o.created_at)}</span></div>
               <div className="order-acts">
                 <span className={`o-status o-${(o.status || "").toLowerCase()}`}>{o.status}</span>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Confirmed")}>Confirm</button>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Shipped")}>Ship</button>
-                <button className="o-btn" onClick={() => updateOrderStatus(o.orderId || o.order_id || o.id, "Delivered")} style={{ background: "#16a34a" }}>Deliver</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.id || o.order_id || o.orderId, "Confirmed")}>Confirm</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.id || o.order_id || o.orderId, "Shipped")}>Ship</button>
+                <button className="o-btn" onClick={() => updateOrderStatus(o.id || o.order_id || o.orderId, "Delivered")} style={{ background: "#16a34a" }}>Deliver</button>
               </div>
             </div>
           )) : <div style={{ padding: "40px", color: "#888", textAlign: "center" }}>No orders yet.</div>}</div>
@@ -1865,7 +1902,7 @@ function AdminPage({
         <div className="admin-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ margin: 0 }}>Store Settings</h3>
-            <button className="btn-red-lg" style={{ height: "40px", padding: "0 20px", fontSize: "14px" }} onClick={editSettings ? saveSettings : () => setEditSettings(true)}>{editSettings ? "💾 Save Changes" : "✏️ Edit Settings"}</button>
+            <button className="btn-red-lg" style={{ height: "40px", padding: "0 20px", fontSize: "14px" }} onClick={editSettings ? handleSave : () => setEditSettings(true)}>{editSettings ? "💾 Save Changes" : "✏️ Edit Settings"}</button>
           </div>
           <div className="checkout-grid">
             {[{ key: "storeName", label: "Store Name" }, { key: "whatsappNumber", label: "WhatsApp Number" }, { key: "supportEmail", label: "Support Email" }, { key: "shippingFee", label: "Shipping Fee (Rs)" }, { key: "freeShippingThreshold", label: "Free Shipping Threshold (Rs)" }].map(f => (
@@ -1929,25 +1966,7 @@ const CSS = `
   .desktop-only{display:flex}
   .mobile-only{display:none}
 
-  /* ── PAGE TRANSITION ── */
-  .pt-overlay{position:fixed;inset:0;z-index:99999;pointer-events:none;display:flex;align-items:center;justify-content:center;}
-  .pt-backdrop{position:absolute;inset:0;background:rgba(10,10,10,0);transition:background 0.15s ease;}
-  .pt-enter .pt-backdrop{background:rgba(10,10,10,0.72);}
-  .pt-exit .pt-backdrop{background:rgba(10,10,10,0);transition:background 0.3s ease 0.05s;}
-  .pt-center{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;transform:scale(0.85);transition:opacity 0.25s ease,transform 0.25s cubic-bezier(0.34,1.4,0.64,1);}
-  .pt-enter .pt-center{opacity:1;transform:scale(1);}
-  .pt-exit .pt-center{opacity:0;transform:scale(1.08);transition:opacity 0.2s ease,transform 0.2s ease;}
-  .pt-logo-ring{width:72px;height:72px;background:var(--red);border-radius:20px;display:grid;place-items:center;box-shadow:0 0 0 0 rgba(217,4,41,0.5);}
-  .pt-enter .pt-logo-ring{animation:ptRingPulse 0.7s ease forwards;}
-  @keyframes ptRingPulse{0%{box-shadow:0 0 0 0 rgba(217,4,41,0.5)}60%{box-shadow:0 0 0 18px rgba(217,4,41,0)}100%{box-shadow:0 0 0 0 rgba(217,4,41,0)}}
-  .pt-logo-mark{font-size:22px;font-weight:900;color:white;font-family:var(--font-head);letter-spacing:-1px;}
-  .pt-logo-name{font-size:18px;font-weight:800;color:white;font-family:var(--font-head);letter-spacing:-0.5px;}
-  .pt-line-wrap{width:160px;height:3px;background:rgba(255,255,255,0.15);border-radius:999px;overflow:hidden;margin-top:4px;}
-  .pt-line-bar{height:100%;width:0%;background:white;border-radius:999px;}
-  .pt-enter .pt-line-bar{animation:ptLineFill 0.7s cubic-bezier(0.4,0,0.2,1) 0.1s forwards;}
-  .pt-exit .pt-line-bar{animation:ptLineFade 0.2s ease forwards;}
-  @keyframes ptLineFill{0%{width:0%;opacity:1}85%{width:100%;opacity:1}100%{width:100%;opacity:0.6}}
-  @keyframes ptLineFade{from{opacity:0.6}to{opacity:0}}
+
 
   /* ── TOAST ── */
   .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--dark);color:white;padding:14px 28px;border-radius:999px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:var(--sh-xl);pointer-events:none;max-width:calc(100vw - 32px);}
@@ -2893,7 +2912,22 @@ export default function App() {
         ]);
         setProducts(prods || []);
         setOrders(ords || []);
-        if (sett) setSettings(sett);
+        if (sett) {
+          // Normalize snake_case from DB to camelCase for UI
+          const normalized = {
+            ...DEFAULT_SETTINGS,
+            ...sett,
+            storeName: sett.store_name || sett.storeName || DEFAULT_SETTINGS.storeName,
+            heroTitle: sett.hero_title || sett.heroTitle || DEFAULT_SETTINGS.heroTitle,
+            whatsappNumber: sett.whatsapp_number || sett.whatsappNumber || DEFAULT_SETTINGS.whatsappNumber,
+            supportEmail: sett.support_email || sett.supportEmail || DEFAULT_SETTINGS.supportEmail,
+            shippingFee: sett.shipping_fee ?? sett.shippingFee ?? DEFAULT_SETTINGS.shippingFee,
+            freeShippingThreshold: sett.free_shipping_threshold ?? sett.freeShippingThreshold ?? DEFAULT_SETTINGS.freeShippingThreshold,
+            heroSubtitle: sett.hero_subtitle || sett.heroSubtitle || DEFAULT_SETTINGS.heroSubtitle,
+            announcement: sett.announcement || DEFAULT_SETTINGS.announcement,
+          };
+          setSettings(normalized);
+        }
         setCoupons(coups || []);
         setFaqs(faqItems || []);
       } catch (err) {
@@ -2966,13 +3000,23 @@ export default function App() {
     if (!form.name || !form.phone || !form.city || !form.address) {
       showToast("Please fill all required fields!"); return;
     }
+
+    let finalDiscount = 0;
+    if (form.coupon) {
+      const coupon = coupons.find(c => c.code.toUpperCase() === form.coupon.toUpperCase());
+      if (coupon) {
+        finalDiscount = coupon.type === "percent" ? (subtotal * coupon.value / 100) : coupon.value;
+      }
+    }
+
     const order = {
       order_id: `ISO-${Date.now().toString().slice(-6)}`,
       customer: form,
       items: cart,
       subtotal,
       shipping,
-      total,
+      discount: finalDiscount,
+      total: Math.max(0, total - finalDiscount),
       status: "Pending",
     };
     try {
@@ -2985,7 +3029,7 @@ export default function App() {
       showToast("Failed to place order. Try again.");
       console.error(err);
     }
-  }, [cart, subtotal, shipping, total, showToast, navigate]);
+  }, [cart, subtotal, shipping, total, coupons, showToast, navigate]);
 
 
 
@@ -3037,10 +3081,38 @@ export default function App() {
   const updateOrderStatus = useCallback(async (orderId, status) => {
     try {
       await apiUpdateOrderStatus(orderId, status);
-      setOrders(prev => prev.map(o => o.order_id === orderId ? { ...o, status } : o));
+      setOrders(prev => prev.map(o => (o.id === orderId || o.order_id === orderId || o.orderId === orderId) ? { ...o, status } : o));
+      showToast(`Order status updated to ${status}`);
     } catch (err) {
       showToast("Failed to update order.");
       console.error(err);
+    }
+  }, [showToast]);
+
+  const handleSaveSettings = useCallback(async (newSettings) => {
+    try {
+      // Map to snake_case for Supabase
+      const mapped = {
+        store_name: newSettings.storeName,
+        hero_title: newSettings.heroTitle,
+        whatsapp_number: newSettings.whatsappNumber,
+        support_email: newSettings.supportEmail,
+        shipping_fee: Number(newSettings.shippingFee),
+        free_shipping_threshold: Number(newSettings.freeShippingThreshold),
+        announcement: newSettings.announcement,
+        hero_subtitle: newSettings.heroSubtitle,
+        sale_ends_at: newSettings.saleEndsAt
+      };
+
+      const saved = await updateSettings(mapped);
+
+      // Merge saved with newSettings to ensure all fields (camelCase and snake_case) are available
+      setSettings(prev => ({ ...prev, ...newSettings, ...saved }));
+      showToast("Settings saved successfully!");
+    } catch (err) {
+      showToast("Failed to save settings. Please check table schema.");
+      console.error(err);
+      throw err;
     }
   }, [showToast]);
 
@@ -3053,7 +3125,7 @@ export default function App() {
       case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
       case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
       case "cart": return <CartPage cart={cart} setPage={navigate} updateCartQty={updateCartQty} removeFromCart={removeFromCart} subtotal={subtotal} shipping={shipping} total={total} />;
-      case "checkout": return <CheckoutPage cart={cart} subtotal={subtotal} shipping={shipping} total={total} placeOrder={placeOrder} />;
+      case "checkout": return <CheckoutPage cart={cart} subtotal={subtotal} shipping={shipping} total={total} placeOrder={placeOrder} coupons={coupons} />;
       case "confirmation": return <ConfirmationPage order={lastOrder} setPage={navigate} />;
       case "about": return <AboutPage />;
       case "contact": return <ContactPage settings={settings} />;
@@ -3062,21 +3134,16 @@ export default function App() {
       case "privacy-policy": return <PrivacyPolicyPage />;
       case "terms": return <TermsPage />;
       case "faq": return <FAQPage faqs={faqs} />;
-      case "track-order": return <TrackOrderPage />;
-      case "admin": return <AdminPage products={products} orders={orders} settings={settings} setSettings={setSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
+      case "track-order": return <TrackOrderPage settings={settings} />;
+      case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
       default: return <HomePage settings={settings} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
     }
   };
-  if (loading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: "16px", fontFamily: "sans-serif" }}>
-      <div style={{ width: "48px", height: "48px", background: "#d90429", borderRadius: "12px", display: "grid", placeItems: "center", color: "white", fontWeight: "900", fontSize: "14px" }}>ISO</div>
-      <p style={{ color: "#6b7280", fontSize: "14px" }}>Loading store...</p>
-    </div>
-  );
+  if (loading) return <div style={{ background: "white", width: "100vw", height: "100vh" }} />;
   return (
     <>
       <style>{CSS}</style>
-      <PageTransition trigger={transitionTrigger} />
+
       <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
         await supabase.auth.signOut();
         setCurrentUser(null);
