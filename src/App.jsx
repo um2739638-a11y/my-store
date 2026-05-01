@@ -592,7 +592,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             <span className="hdr-logo-text">ISmallOne</span>
           </button>
           <nav className="hdr-nav desktop-only">
-            {[["home", "Home"], ["shop", "Shop"], ["about", "About"], ["contact", "Contact"]].map(([k, l]) => (
+            {[["home", "Home"], ["shop", "Shop"], ["track-order", "Track Order"], ["about", "About"], ["contact", "Contact"]].map(([k, l]) => (
               <button key={k} className={`hdr-nav-btn ${page === k ? "active" : ""}`} onClick={() => navTo(k)}>{l}</button>
             ))}
             {currentUser?.role === "admin" && (
@@ -673,7 +673,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
               </div>
             )}
             <nav className="mobile-nav">
-              {[["home", "🏠", "Home"], ["shop", "🛍️", "Shop All"], ["about", "ℹ️", "About Us"], ["contact", "📞", "Contact"]].map(([k, ico, l]) => (
+              {[["home", "🏠", "Home"], ["shop", "🛍️", "Shop All"], ["track-order", "📦", "Track Order"], ["about", "ℹ️", "About Us"], ["contact", "📞", "Contact"]].map(([k, ico, l]) => (
                 <button key={k} className={`mobile-nav-btn ${page === k ? "active" : ""}`} onClick={() => navTo(k)}>
                   <span>{ico}</span><span>{l}</span><span className="mobile-nav-arrow">›</span>
                 </button>
@@ -724,7 +724,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
 }
 
 // ─── HERO BANNER ──────────────────────────────────────────────────────────────
-function HeroBanner({ settings, openProduct, products }) {
+function HeroBanner({ settings, openProduct, products, setPage }) {
   let featured = products.filter(p => p.featured);
   if (featured.length === 0) featured = products.slice(0, 5);
   if (featured.length === 0) return null; // Fallback
@@ -780,7 +780,7 @@ function HeroBanner({ settings, openProduct, products }) {
           </div>
           <div className="hero-btns">
             <button className="btn-red-lg hero-cta" onClick={() => openProduct(hero)}><span>Shop Now</span><span className="btn-arrow">→</span></button>
-            <button className="btn-outline-lg">Explore Collection</button>
+            <button className="btn-outline-lg" onClick={() => setPage("track-order")}>Track Your Order</button>
           </div>
           <div className="hero-stats">
             <div className="hero-stat"><strong><AnimatedCounter target="10K+" duration={2000} /></strong><span>Happy Customers</span></div>
@@ -999,7 +999,7 @@ function PromoStrip({ setPage }) {
     <section className="promo-strip">
       <div className="promo-card promo-card-1"><div className="promo-content"><span className="promo-tag">Summer 2026</span><h3>Beat the Heat</h3><p>Up to 40% off on cooling gadgets</p><button className="promo-btn" onClick={() => setPage("shop")}>Shop Now →</button></div><span className="promo-emoji">☀️</span></div>
       <div className="promo-card promo-card-2"><div className="promo-content"><span className="promo-tag">New Arrivals</span><h3>Smart Watch Season</h3><p>Latest models, best prices in PK</p><button className="promo-btn" onClick={() => setPage("shop")}>Explore →</button></div><span className="promo-emoji">⌚</span></div>
-      <div className="promo-card promo-card-3"><div className="promo-content"><span className="promo-tag">COD Available</span><h3>Order With Confidence</h3><p>Pay only when you receive</p><button className="promo-btn" onClick={() => setPage("shop")}>Order Now →</button></div><span className="promo-emoji">📦</span></div>
+      <div className="promo-card promo-card-3"><div className="promo-content"><span className="promo-tag">Live Tracking</span><h3>Track Your Order</h3><p>Check your order status anytime</p><button className="promo-btn" onClick={() => setPage("track-order")}>Track Now →</button></div><span className="promo-emoji">📦</span></div>
     </section>
   );
 }
@@ -1053,7 +1053,7 @@ function SiteFooter({ setPage }) {
           <p>Pakistan's premier online gadget store. Quality products, fast delivery, trusted by thousands.</p>
           <div className="footer-socials"><a href="#" className="social-a">f</a><a href="#" className="social-a">ig</a><a href="#" className="social-a">wa</a></div>
         </div>
-        <div className="footer-col"><h4>Quick Links</h4><button onClick={() => setPage("home")}>Home</button><button onClick={() => setPage("shop")}>Shop All</button><button onClick={() => setPage("about")}>About Us</button><button onClick={() => setPage("contact")}>Contact</button></div>
+        <div className="footer-col"><h4>Quick Links</h4><button onClick={() => setPage("home")}>Home</button><button onClick={() => setPage("shop")}>Shop All</button><button onClick={() => setPage("track-order")}>Track Order</button><button onClick={() => setPage("about")}>About Us</button><button onClick={() => setPage("contact")}>Contact</button></div>
         <div className="footer-col"><h4>Customer Care</h4><button onClick={() => setPage("track-order")}>Track Your Order</button><button onClick={() => setPage("returns")}>Returns & Refunds</button><button onClick={() => setPage("shipping-policy")}>Shipping Policy</button><button onClick={() => setPage("privacy-policy")}>Privacy Policy</button><button onClick={() => setPage("faq")}>FAQs</button><button onClick={() => setPage("terms")}>Terms & Conditions</button></div>
         <div className="footer-col"><h4>Contact Us</h4><p>📱 +92 300 863 1809</p><p>✉️ support@ISmallOne</p><p>🕐 Mon–Sat, 10am–8pm</p><div className="footer-pays"><span>COD</span><span>JazzCash</span><span>Bank</span></div></div>
       </div>
@@ -1069,7 +1069,7 @@ function HomePage({ settings, products, wishlist, toggleWishlist, openProduct, a
   const bestSellers = [...products].sort((a, b) => b.soldCount - a.soldCount);
   return (
     <main>
-      <HeroBanner settings={settings} openProduct={openProduct} products={products} />
+      <HeroBanner settings={settings} openProduct={openProduct} products={products} setPage={setPage} />
       <TickerBar />
       <TrustBar />
       <CategoryGrid setPage={setPage} />
@@ -1470,14 +1470,13 @@ function FAQPage({ faqs }) {
 
 function TrackOrderPage({ settings }) {
   const [orderIdInput, setOrderIdInput] = useState("");
-  const [phoneInput, setPhoneInput] = useState("");
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleTrack = async () => {
-    if (!orderIdInput.trim() || !phoneInput.trim()) {
-      setError("Please enter both Order ID and Phone Number");
+    if (!orderIdInput.trim()) {
+      setError("Please enter your Order ID");
       return;
     }
     setLoading(true);
@@ -1487,10 +1486,9 @@ function TrackOrderPage({ settings }) {
         .from("orders")
         .select("*")
         .or(`order_id.eq.${orderIdInput.trim()},id.eq.${orderIdInput.trim()}`)
-        .eq("phone", phoneInput.trim())
         .single();
 
-      if (err || !data) throw new Error("Order not found. Please check your details.");
+      if (err || !data) throw new Error("Order not found. Please check your Order ID.");
       setOrder(data);
     } catch (e) {
       setError(e.message);
@@ -1515,14 +1513,13 @@ function TrackOrderPage({ settings }) {
       <div className="sec-head sec-centered">
         <div className="eyebrow">Order Tracking</div>
         <h1 className="sec-h2">Track Your Order</h1>
-        <p className="sec-sub sec-sub-center">Enter your order details for live status updates</p>
+        <p className="sec-sub sec-sub-center">Enter your Order ID for live status updates</p>
       </div>
       <div className="track-wrap">
         <div className="track-card">
           <div className="track-icon">📦</div>
-          <h3>Enter Your Details</h3>
-          <input className="field" placeholder="Order ID (e.g., ISO-123456)" value={orderIdInput} onChange={e => setOrderIdInput(e.target.value)} style={{ marginBottom: "12px" }} />
-          <input className="field" placeholder="Phone Number" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} style={{ marginBottom: "16px" }} />
+          <h3>Track Order</h3>
+          <input className="field" placeholder="Order ID (e.g., ISO-123456 or ORD-123)" value={orderIdInput} onChange={e => setOrderIdInput(e.target.value)} style={{ marginBottom: "16px" }} />
           <button className="btn-red-lg" style={{ width: "100%" }} onClick={handleTrack} disabled={loading}>
             {loading ? "Searching..." : "Track Order"}
           </button>
@@ -3061,6 +3058,16 @@ export default function App() {
   useEffect(() => {
     async function loadAll() {
       try {
+        // Recover Session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setCurrentUser({
+            ...session.user,
+            role: session.user.user_metadata?.role || "user",
+            name: session.user.user_metadata?.name || (session.user.user_metadata?.role === "admin" ? "Admin" : "Customer")
+          });
+        }
+
         const [prods, ords, sett, coups, faqItems] = await Promise.all([
           getProducts(),
           getOrders(),
