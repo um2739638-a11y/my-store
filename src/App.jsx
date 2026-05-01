@@ -795,8 +795,8 @@ function HeroBanner({ settings, openProduct, products }) {
         <div className="hero-visual">
           <div className={`hero-img-card hero-card-anim hero-card-${animState} glass-card`}>
             {hero?.video ? (
-              <video key={hero.video} src={hero.video} autoPlay muted loop playsInline
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              <video key={hero.video} src={hero.video} poster={hero?.images?.[0]} autoPlay muted loop playsInline
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", background: "#000" }} />
             ) : (
               <img key={hero?.id || idx} src={hero?.images?.[0]} alt={hero?.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             )}
@@ -980,7 +980,7 @@ function BrandBanner({ openProduct, product }) {
         <div className="brand-visual">
           <div className="brand-img-wrap">
             {product?.video ? (
-              <video src={product.video} className="brand-img" autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <video src={product.video} poster={product?.images?.[0]} className="brand-img" autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />
             ) : (
               <img className="brand-img" src={product?.images?.[0]} alt={product?.name} />
             )}
@@ -1469,28 +1469,84 @@ function FAQPage({ faqs }) {
 }
 
 function TrackOrderPage({ settings }) {
-  const [orderId, setOrderId] = useState("");
-  const [phone, setPhone] = useState("");
-  const [searched, setSearched] = useState(false);
+  const [orderIdInput, setOrderIdInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleTrack = async () => {
+    if (!orderIdInput.trim() || !phoneInput.trim()) {
+      setError("Please enter both Order ID and Phone Number");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { data, error: err } = await supabase
+        .from("orders")
+        .select("*")
+        .or(`order_id.eq.${orderIdInput.trim()},id.eq.${orderIdInput.trim()}`)
+        .eq("phone", phoneInput.trim())
+        .single();
+
+      if (err || !data) throw new Error("Order not found. Please check your details.");
+      setOrder(data);
+    } catch (e) {
+      setError(e.message);
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStepClass = (stepStatus) => {
+    if (!order) return "";
+    const statuses = ["Pending", "Processing", "Shipped", "Delivered"];
+    const currentIdx = statuses.indexOf(order.status || "Pending");
+    const stepIdx = statuses.indexOf(stepStatus);
+    if (currentIdx >= stepIdx) return "done";
+    if (currentIdx === stepIdx - 1) return "active";
+    return "";
+  };
+
   return (
     <main><section className="sec">
-      <div className="sec-head sec-centered"><div className="eyebrow">Order Tracking</div><h1 className="sec-h2">Track Your Order</h1><p className="sec-sub sec-sub-center">Enter your order details for live status updates</p></div>
+      <div className="sec-head sec-centered">
+        <div className="eyebrow">Order Tracking</div>
+        <h1 className="sec-h2">Track Your Order</h1>
+        <p className="sec-sub sec-sub-center">Enter your order details for live status updates</p>
+      </div>
       <div className="track-wrap">
         <div className="track-card">
           <div className="track-icon">📦</div>
           <h3>Enter Your Details</h3>
-          <input className="field" placeholder="Order ID (e.g., ISO-123456)" value={orderId} onChange={e => setOrderId(e.target.value)} style={{ marginBottom: "12px" }} />
-          <input className="field" placeholder="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} style={{ marginBottom: "16px" }} />
-          <button className="btn-red-lg" style={{ width: "100%" }} onClick={() => setSearched(true)}>Track Order</button>
-          {searched && (
-            <div className="track-result">
-              <div className="track-timeline">
-                <div className="track-step done"><div className="track-step-dot" /><div className="track-step-info"><strong>Order Placed</strong><span>Confirmed</span></div></div>
-                <div className="track-step done"><div className="track-step-dot" /><div className="track-step-info"><strong>Processing</strong><span>Being prepared</span></div></div>
-                <div className="track-step active"><div className="track-step-dot" /><div className="track-step-info"><strong>Dispatched</strong><span>Out for delivery</span></div></div>
-                <div className="track-step"><div className="track-step-dot" /><div className="track-step-info"><strong>Delivered</strong><span>Awaiting delivery</span></div></div>
+          <input className="field" placeholder="Order ID (e.g., ISO-123456)" value={orderIdInput} onChange={e => setOrderIdInput(e.target.value)} style={{ marginBottom: "12px" }} />
+          <input className="field" placeholder="Phone Number" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} style={{ marginBottom: "16px" }} />
+          <button className="btn-red-lg" style={{ width: "100%" }} onClick={handleTrack} disabled={loading}>
+            {loading ? "Searching..." : "Track Order"}
+          </button>
+
+          {error && <p style={{ color: "var(--red)", marginTop: "12px", fontSize: "13px", fontWeight: "600" }}>{error}</p>}
+
+          {order && (
+            <div className="track-result" style={{ animation: "fadeIn 0.4s ease" }}>
+              <div style={{ marginBottom: "20px", padding: "12px", background: "var(--bg-soft)", borderRadius: "var(--r)", border: "1.5px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                  <span style={{ color: "var(--muted)" }}>Status:</span>
+                  <strong style={{ color: "var(--red)" }}>{order.status}</strong>
+                </div>
               </div>
-              <div className="track-wa"><p>For real-time updates, contact us on WhatsApp:</p><a href={`https://wa.me/${settings.whatsappNumber}`} target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{ marginTop: "10px" }}>📱 WhatsApp Support</a></div>
+              <div className="track-timeline">
+                <div className={`track-step ${getStepClass("Pending")}`}><div className="track-step-dot" /><div className="track-step-info"><strong>Order Placed</strong><span>Confirmed</span></div></div>
+                <div className={`track-step ${getStepClass("Processing")}`}><div className="track-step-dot" /><div className="track-step-info"><strong>Processing</strong><span>Being prepared</span></div></div>
+                <div className={`track-step ${getStepClass("Shipped")}`}><div className="track-step-dot" /><div className="track-step-info"><strong>Shipped</strong><span>Out for delivery</span></div></div>
+                <div className={`track-step ${getStepClass("Delivered")}`}><div className="track-step-dot" /><div className="track-step-info"><strong>Delivered</strong><span>Arrived at destination</span></div></div>
+              </div>
+              <div className="track-wa">
+                <p>Need more help? Contact us on WhatsApp:</p>
+                <a href={`https://wa.me/${settings.whatsappNumber}`} target="_blank" rel="noreferrer" className="pdp-wa-btn" style={{ marginTop: "10px" }}>📱 WhatsApp Support</a>
+              </div>
             </div>
           )}
         </div>
@@ -1784,7 +1840,11 @@ function AdminPage({
   showToast,
 }) {
   const [form, setForm] = useState({ name: "", category: "", price: "", compareAtPrice: "", image: "" });
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("iso_admin_tab") || "dashboard");
+
+  useEffect(() => {
+    localStorage.setItem("iso_admin_tab", activeTab);
+  }, [activeTab]);
   const [editSettings, setEditSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState(settings || {});
   const [couponForm, setCouponForm] = useState({ code: "", type: "percent", value: "" });
@@ -2982,7 +3042,11 @@ export default function App() {
     const timer = setTimeout(() => setMinLoading(false), 1000);
     return () => clearTimeout(timer);
   }, []);
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(() => localStorage.getItem("iso_last_page") || "home");
+
+  useEffect(() => {
+    localStorage.setItem("iso_last_page", page);
+  }, [page]);
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
