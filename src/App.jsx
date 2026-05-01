@@ -125,8 +125,67 @@ function AnimatedCounter({ target, duration = 2000 }) {
   return <span ref={ref}>{display}{str.includes("★") ? " ★" : ""}{str.includes("/5") ? "/5" : ""}</span>;
 }
 
-// ─── PAGE TRANSITION — ISO LOGO + WHITE LINE ──────────────────────────────────
+// ─── PAGE TRANSITION ──────────────────────────────────────────────────────────
+function PageTransition({ trigger }) {
+  const [active, setActive] = useState(false);
+  const [phase, setPhase] = useState("idle");
 
+  useEffect(() => {
+    if (trigger === 0) return;
+    setPhase("enter");
+    setActive(true);
+    const t1 = setTimeout(() => setPhase("exit"), 900);
+    const t2 = setTimeout(() => { setActive(false); setPhase("idle"); }, 1200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [trigger]);
+
+  if (!active) return null;
+
+  return (
+    <div className={`pt-overlay pt-${phase}`}>
+      <div className="pt-backdrop" />
+      <div className="pt-center">
+        <div className="pt-logo-ring">
+          <span className="pt-logo-mark">ISO</span>
+        </div>
+        <div className="pt-logo-name">ISmallOne</div>
+        <div className="pt-line-wrap">
+          <div className="pt-line-bar" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SplashLoader({ ready }) {
+  const [visible, setVisible] = useState(true);
+  const [phase, setPhase] = useState("enter");
+
+  useEffect(() => {
+    if (ready) {
+      setPhase("exit");
+      const timer = setTimeout(() => setVisible(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [ready]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`pt-overlay pt-${phase}`} style={{ zIndex: 1000000, pointerEvents: "all" }}>
+      <div className="pt-backdrop" style={{ background: "linear-gradient(135deg, #ffffff 0%, #fff1f2 100%)", opacity: 1 }} />
+      <div className="pt-center">
+        <div className="pt-logo-ring splash-ring-anim">
+          <span className="pt-logo-mark">ISO</span>
+        </div>
+        <div className="pt-logo-name">ISmallOne</div>
+        <div className="pt-line-wrap">
+          <div className="pt-line-bar splash-line-anim" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────────
 function LiveActivityFeed({ products }) {
@@ -1968,6 +2027,35 @@ const CSS = `
 
 
 
+  /* ── PAGE TRANSITION & SPLASH ── */
+  .pt-overlay{position:fixed;inset:0;z-index:99999;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+  .pt-backdrop{position:absolute;inset:0;background:linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);opacity:0;transition:opacity 0.25s ease;}
+  .pt-enter .pt-backdrop{opacity:1}
+  .pt-exit .pt-backdrop{opacity:0}
+  
+  .pt-center{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:12px;opacity:0;transform:scale(0.85);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);}
+  .pt-enter .pt-center{opacity:1;transform:scale(1)}
+  .pt-exit .pt-center{opacity:0;transform:scale(1.05)}
+
+  .pt-logo-ring{width:76px;height:76px;background:var(--red);border-radius:22px;display:grid;place-items:center;box-shadow:0 0 0 0 rgba(217,4,41,0.4);position:relative;}
+  .pt-logo-mark{font-size:24px;font-weight:900;color:white;font-family:var(--font-head);letter-spacing:-1px;}
+  .pt-logo-name{font-size:18px;font-weight:800;color:var(--dark);font-family:var(--font-head);letter-spacing:-0.5px;margin-top:4px;}
+  
+  .pt-line-wrap{width:140px;height:4px;background:var(--red-soft);border-radius:999px;overflow:hidden;margin-top:6px;}
+  .pt-line-bar{height:100%;width:0%;background:var(--red);border-radius:999px;}
+  
+  .pt-enter .pt-logo-ring{animation:ptRingPulse 0.8s ease forwards;}
+  .pt-enter .pt-line-bar{animation:ptLineFill 0.8s cubic-bezier(0.4,0,0.2,1) forwards;}
+  
+  @keyframes ptRingPulse{0%{box-shadow:0 0 0 0 rgba(217,4,41,0.4)}70%{box-shadow:0 0 0 20px rgba(217,4,41,0)}100%{box-shadow:0 0 0 0 rgba(217,4,41,0)}}
+  @keyframes ptLineFill{to{width:100%}}
+
+  .splash-overlay{position:fixed;inset:0;background:linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);display:flex;align-items:center;justify-content:center;z-index:999999;}
+  .splash-overlay .pt-center{opacity:1;transform:scale(1);}
+  .splash-ring-anim{animation:ptRingPulse 1.2s ease infinite !important;}
+  .splash-line-anim{animation:splashLineLoop 2s ease-in-out infinite !important;}
+  @keyframes splashLineLoop{0%{width:0%;margin-left:0}50%{width:100%;margin-left:0}100%{width:0%;margin-left:100%}}
+
   /* ── TOAST ── */
   .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--dark);color:white;padding:14px 28px;border-radius:999px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:all .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:var(--sh-xl);pointer-events:none;max-width:calc(100vw - 32px);}
   .toast-check{color:#4ade80;margin-right:8px;font-weight:900}
@@ -2888,6 +2976,12 @@ export default function App() {
   const [coupons, setCoupons] = useState([]);
   const [faqs, setFaqs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [minLoading, setMinLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMinLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
   const [page, setPage] = useState("home");
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState([]);
@@ -3139,23 +3233,27 @@ export default function App() {
       default: return <HomePage settings={settings} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
     }
   };
-  if (loading) return <div style={{ background: "white", width: "100vw", height: "100vh" }} />;
+  const isReady = !loading && !minLoading;
   return (
     <>
       <style>{CSS}</style>
+      <SplashLoader ready={isReady} />
 
-      <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
-        await supabase.auth.signOut();
-        setCurrentUser(null);
-      }} />
+      <div style={{ opacity: isReady ? 1 : 0, transition: "opacity 0.5s ease" }}>
+        <PageTransition trigger={transitionTrigger} />
+        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+        }} />
 
 
-      {renderPage()}
-      <SiteFooter setPage={navigate} />
-      <WhatsAppFloat number={settings.whatsappNumber} />
-      <LiveActivityFeed products={products} />
-      <Toast message={toast.message} visible={toast.visible} />
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); showToast(`Welcome, ${user.name}!`); }} dbUsers={[]} setDbUsers={() => { }} isAdminLogin={isAdminLogin} />}
+        {renderPage()}
+        <SiteFooter setPage={navigate} />
+        <WhatsAppFloat number={settings.whatsappNumber} />
+        <LiveActivityFeed products={products} />
+        <Toast message={toast.message} visible={toast.visible} />
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); showToast(`Welcome, ${user.name}!`); }} dbUsers={[]} setDbUsers={() => { }} isAdminLogin={isAdminLogin} />}
+      </div>
     </>
   );
 }
