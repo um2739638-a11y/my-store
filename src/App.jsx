@@ -1482,13 +1482,15 @@ function TrackOrderPage({ settings }) {
     setLoading(true);
     setError("");
     try {
+      const input = orderIdInput.trim();
       const { data, error: err } = await supabase
         .from("orders")
         .select("*")
-        .or(`order_id.eq.${orderIdInput.trim()},id.eq.${orderIdInput.trim()}`)
-        .single();
+        .ilike("order_id", input)
+        .maybeSingle();
 
-      if (err || !data) throw new Error("Order not found. Please check your Order ID.");
+      if (err) throw err;
+      if (!data) throw new Error("Order not found. Please check your Order ID.");
       setOrder(data);
     } catch (e) {
       setError(e.message);
