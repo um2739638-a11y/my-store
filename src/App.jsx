@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { supabase } from "./lib/supabase";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { getProducts, getOrders, getSettings, updateSettings, getCoupons, addCoupon, deleteCoupon, getFaqs, addFaq, deleteFaq, addProduct as apiAddProduct, updateProduct as apiUpdateProduct, deleteProduct as apiDeleteProduct, placeOrder as apiPlaceOrder, updateOrderStatus as apiUpdateOrderStatus } from "./lib/api";
 import { DESIGN_TOKENS, STORE_BRAND } from "./designTokens";
 
@@ -37,10 +38,19 @@ function money(value) {
   return `Rs ${Number(value || 0).toLocaleString("en-PK")}`;
 }
 function cleanProductName(name = "") {
-  return String(name)
-    .replace(/\b(multifunctional|compact|durable|easy to use|premium quality|best quality|for men|for women)\b/gi, "")
+  const raw = String(name || "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("m16") && lower.includes("earbud")) return "M16 Mini Bluetooth Earbuds";
+  if (lower.includes("electric handheld vegetable cutter")) return "Electric Vegetable Chopper";
+  if (lower.includes("automatic toothpaste dispenser")) return "Automatic Toothpaste Dispenser";
+  if (lower.includes("self-adhesive") && lower.includes("wall hooks")) return "Transparent Wall Hooks - Pack of 10";
+  if (lower.includes("3d crystal") && lower.includes("moon")) return "3D Crystal Moon Lamp";
+  if (lower.includes("silicone baking mat")) return "Silicone Baking Mat";
+  return raw
+    .replace(/\b(high quality|crystal clear sound anywhere|compact stylish|wireless headset|multifunctional|compact|durable|easy to use|premium quality|best quality|for men|for women|with measurements|heat resistant|non stick|random color)\b/gi, "")
     .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,&-])/g, "$1")
+    .replace(/\s+([,&|()-])/g, "$1")
+    .replace(/([|(])\s+/g, "$1")
     .trim();
 }
 function clamp(value, min, max) {
@@ -116,16 +126,66 @@ const STOREFRONT_CATEGORIES = [
   { name: "Car Accessories", key: "car", icon: "🚗", keywords: ["car", "vehicle", "auto", "vacuum", "holder", "charger"] },
   { name: "Cleaning & Storage", key: "cleaning", icon: "🧼", keywords: ["cleaning", "cleaner", "storage", "organizer", "lint", "mop", "box"] },
 ];
+const CATEGORY_LABELS = {
+  "home essentials": "Home",
+  "home gadgets": "Home",
+  "summer deals": "Deals",
+  "kitchen tools": "Kitchen",
+  "mobile accessories": "Mobile",
+  "smart wearables": "Wearables",
+  "power & charging": "Charging",
+  "car accessories": "Car",
+  "cleaning & storage": "Storage",
+};
+function normalizeCategoryName(value = "") {
+  return String(value).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function displayCategoryLabel(category = "") {
+  const key = String(category).toLowerCase().trim();
+  if (CATEGORY_LABELS[key]) return CATEGORY_LABELS[key];
+  const words = String(category || "Premium").replace(/&/g, "and").split(/\s+/).filter(Boolean);
+  return words.length > 2 ? words.slice(0, 2).join(" ") : (words.join(" ") || "Premium");
+}
+function categoryToneClass(category = "") {
+  const cat = normalizeCategoryName(category);
+  if (/kitchen|baking|chopper|blender|food/.test(cat)) return "pcard-tone-kitchen";
+  if (/home|cleaning|storage|toothpaste|bathroom/.test(cat)) return "pcard-tone-home";
+  if (/gift|deal|summer/.test(cat)) return "pcard-tone-gifts";
+  return "pcard-tone-default";
+}
+function productMatchesCategory(product, category) {
+  const cat = normalizeCategoryName(product?.category);
+  const text = normalizeCategoryName([product?.name, product?.shortDescription, product?.description].join(" "));
+  const productName = normalizeCategoryName(product?.name);
+  const key = normalizeCategoryName(category.key);
+  const name = normalizeCategoryName(category.name);
+  if (key === "audio") return /audio|earbud|earbuds|headphone|speaker|sound|handsfree|bluetooth/.test(text) || /audio/.test(cat);
+  if (key === "kitchen") return /kitchen|baking|chopper|blender|juicer|mat/.test(cat) || /kitchen|baking|chopper|blender|juicer|mat/.test(text);
+  if (key === "home") return /home/.test(cat) || /toothpaste|bathroom|lamp|light|organizer|home/.test(text);
+  if (key === "cleaning") return /cleaning|storage/.test(cat) || /organizer|storage|hooks|wall/.test(productName);
+  if (key === "smart") return /smart|wearable|watch|fitness/.test(cat) || /smart|wearable|watch|fitness/.test(productName);
+  if (key === "mobile") return /mobile/.test(cat) || /phone|mobile|case|cover|protector/.test(productName);
+  if (key === "power") return /power|charging/.test(cat) || /charger|adapter|cable|power bank|pd charger/.test(productName);
+  if (key === "car") return /car|vehicle|auto/.test(cat) || /car|vehicle|vacuum/.test(productName);
+  return cat.includes(key) || cat.includes(name);
+}
+function categoryProductPriority(product, category) {
+  const text = normalizeCategoryName([product?.category, product?.name].join(" "));
+  if (category.key === "kitchen" && /baking mat/.test(text)) return 40;
+  if (category.key === "home" && /toothpaste dispenser/.test(text)) return 40;
+  if (category.key === "audio" && /m16|earbud|bluetooth/.test(text)) return 40;
+  if (category.key === "gifts" && /crystal|moon|lamp/.test(text)) return 40;
+  if (category.key === "cleaning" && /toothpaste|dispenser|bathroom/.test(text)) return -8;
+  if (/wall hooks|self adhesive/.test(text) && ["home", "cleaning"].includes(category.key)) return -8;
+  if (/vegetable cutter/.test(text) && category.key === "kitchen") return -6;
+  return productMatchesCategory(product, category) ? 10 : 0;
+}
 function matchProductForCategory(products = [], category) {
-  const words = [category.key, category.name, ...(category.keywords || [])].map(v => String(v).toLowerCase());
-  return products
-    .map(product => {
-      const haystack = [product.category, product.name, product.shortDescription, product.description].join(" ").toLowerCase();
-      const score = words.reduce((sum, word) => sum + (haystack.includes(word) ? 1 : 0), 0);
-      return { product, score };
-    })
+  const ranked = products
+    .map(product => ({ product, score: categoryProductPriority(product, category) }))
     .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)[0]?.product || null;
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.product || null;
 }
 // ─── CLOUDINARY UPLOAD ────────────────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dntz5x9s4";        // from dashboard
@@ -254,6 +314,8 @@ function SplashLoader({ ready }) {
 // ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────────
 function LiveActivityFeed({ products }) {
   const [visible, setVisible] = useState(null);
+  const [isClear, setIsClear] = useState(true);
+  const popupRef = useRef(null);
   const queueRef = useRef([]);
   const visibleRef = useRef(null);
 
@@ -266,8 +328,53 @@ function LiveActivityFeed({ products }) {
 
   useEffect(() => {
     if (!visible) return undefined;
-    const timer = setTimeout(() => setVisible(null), 4500);
+    const timer = setTimeout(() => setVisible(null), 4000);
     return () => clearTimeout(timer);
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    const protectedSelector = [
+      "button",
+      "a",
+      "h1",
+      "h2",
+      "h3",
+      "p",
+      ".sec-h2",
+      ".sec-sub",
+      ".view-all",
+      ".sf-btn",
+      ".sf-hero-copy",
+      ".sf-hero-trust span",
+      ".sf-hero-deal",
+      ".pcard-actions",
+      ".footer-col h4",
+    ].join(",");
+    const intersects = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+    const checkClear = () => {
+      const popup = popupRef.current;
+      if (!popup) return;
+      const popupRect = popup.getBoundingClientRect();
+      const collision = Array.from(document.querySelectorAll(protectedSelector)).some(el => {
+        if (popup.contains(el)) return false;
+        const style = getComputedStyle(el);
+        if (style.visibility === "hidden" || style.display === "none") return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) return false;
+        return intersects(popupRect, rect);
+      });
+      setIsClear(!collision);
+    };
+    checkClear();
+    window.addEventListener("scroll", checkClear, { passive: true });
+    window.addEventListener("resize", checkClear);
+    const raf = requestAnimationFrame(checkClear);
+    return () => {
+      window.removeEventListener("scroll", checkClear);
+      window.removeEventListener("resize", checkClear);
+      cancelAnimationFrame(raf);
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -292,9 +399,9 @@ function LiveActivityFeed({ products }) {
       clearInterval(interval);
     };
   }, [products]);
-  if (!visible) return null;
-  return (
-    <div className="live-feed-popup">
+  if (!visible || typeof document === "undefined") return null;
+  return createPortal(
+    <div ref={popupRef} className={`live-feed-popup ${isClear ? "" : "live-feed-hidden"}`}>
       <div className="live-feed-inner">
         <SafeImage src={visible.productImg} alt="" className="live-feed-img" />
         <div className="live-feed-text">
@@ -304,7 +411,8 @@ function LiveActivityFeed({ products }) {
         </div>
         <button className="live-feed-close" onClick={() => setVisible(null)} aria-label="Close notification">×</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -799,8 +907,16 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
   );
 }
 
-function ProductVisual({ product, className = "", label = "", loading = "lazy", imageOnly = false }) {
+function ProductVisual({ product, className = "", label = "", loading = "lazy", imageOnly = false, preferVideo = false, forceImage = false }) {
   const imageSrc = product?.images?.[0] || product?.image || product?.thumbnail;
+  const shouldShowVideo = product?.video && !imageOnly && preferVideo && !forceImage;
+  if (shouldShowVideo) {
+    return (
+      <video key={product.video} className={className} poster={imageSrc || undefined} autoPlay muted loop playsInline preload="metadata">
+        <source src={product.video} type="video/mp4" />
+      </video>
+    );
+  }
   if (imageSrc) {
     return <SafeImage className={className} src={imageSrc} alt={product.name || label || "Product"} loading={loading} />;
   }
@@ -817,36 +933,66 @@ function ProductVisual({ product, className = "", label = "", loading = "lazy", 
 
 // ─── HERO BANNER ──────────────────────────────────────────────────────────────
 function HeroBanner({ openProduct, products, setPage }) {
-  const heroProducts = products.slice(0, 5);
-  const mainProduct = heroProducts[0];
-  const heroTitle = "Premium Gadgets & Home Finds";
-  const heroSubtitle = "Shop useful tech, kitchen tools, home gadgets, and accessories with COD, quick support, and a cleaner premium store experience.";
+  const heroProducts = useMemo(() => {
+    const priority = products.filter(product => /earbud|headphone|audio|watch|charger|lamp|gadget|kitchen|home/i.test([product.name, product.category].join(" ")));
+    const merged = [...priority, ...products].filter(Boolean);
+    return [...new Map(merged.map(product => [product.id, product])).values()].slice(0, 5);
+  }, [products]);
+  const heroCopy = [
+    ["Useful Gadgets. Cleaner Everyday.", "Smart finds that make daily life feel instantly easier."],
+    ["Small Upgrades. Big Daily Wins.", "Premium picks for your room, kitchen, desk, and routine."],
+    ["Better Finds. Faster Decisions.", "Hand-picked products with COD, quick support, and fair prices."],
+    ["Home, Tech, Sorted.", "Useful accessories that look good and actually get used."],
+    ["Fresh Deals. Real Utility.", "New everyday favorites rotating from the ISmallOne shelf."],
+  ];
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [heroHover, setHeroHover] = useState(false);
+  const mainProduct = heroProducts[activeSlide % Math.max(heroProducts.length, 1)];
+  const [heroTitle, heroSubtitle] = heroCopy[activeSlide % heroCopy.length];
+
+  useEffect(() => {
+    if (heroProducts.length <= 1 && heroCopy.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setActiveSlide(index => (index + 1) % Math.max(heroProducts.length, heroCopy.length));
+    }, 4600);
+    return () => clearInterval(timer);
+  }, [heroProducts.length, heroCopy.length]);
 
   return (
     <section className="sf-hero">
-      <div className="sf-hero-copy">
+      <div className="sf-hero-copy sf-hero-fade" key={`copy-${activeSlide}`}>
         <div className="sf-kicker">ISmallOne • New collection</div>
         <h1>{heroTitle}</h1>
         <p>{heroSubtitle}</p>
-        <div className="sf-hero-deal">Buy any 4 products and get free shipping across Pakistan</div>
         <div className="sf-hero-actions">
           <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>Shop Best Sellers</button>
           <button className="sf-btn sf-btn-secondary" onClick={() => setPage("shop")}>View All Products</button>
         </div>
-        <div className="sf-hero-trust"><span>Cash on delivery</span><span>Free shipping deal</span><span>Hand-checked products</span><span>7-day return support</span></div>
+        <div className="sf-hero-trust"><span>Cash on delivery</span><span className="sf-hero-deal">Buy any 4, free shipping</span><span>Hand-checked products</span><span>7-day return support</span></div>
       </div>
       <div className="sf-hero-showcase">
-        <div className="sf-hero-label">Featured pick</div>
-        <button className="sf-hero-product" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>
-          <ProductVisual product={mainProduct} className="sf-hero-product-img" label="Featured Product" loading="eager" imageOnly />
-          <span>{mainProduct?.name || "Featured Product"}</span>
+        <div className="sf-hero-label">Premium pick</div>
+        <button
+          className="sf-hero-product sf-hero-fade"
+          key={`product-${mainProduct?.id || activeSlide}`}
+          onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}
+          onMouseEnter={() => setHeroHover(true)}
+          onMouseLeave={() => setHeroHover(false)}
+          onFocus={() => setHeroHover(true)}
+          onBlur={() => setHeroHover(false)}
+        >
+          <ProductVisual product={mainProduct} className="sf-hero-product-img" label="Featured Product" loading="eager" preferVideo={!heroHover} forceImage={heroHover} />
+          <span>{mainProduct ? cleanProductName(mainProduct.name) : "Featured Product"}</span>
           <strong>{mainProduct ? money(mainProduct.price) : "Shop now"}</strong>
         </button>
-        <div className="sf-mini-stack">
-          {heroProducts.slice(1, 4).map((product) => (
-            <button key={product.id} className="sf-mini-product" onClick={() => openProduct(product)}>
-              <ProductVisual product={product} className="sf-mini-img" imageOnly />
-            </button>
+        <div className="sf-hero-dots" aria-label="Featured product slides">
+          {Array.from({ length: Math.max(heroProducts.length, 1) }).map((_, index) => (
+            <button
+              key={index}
+              className={index === activeSlide % Math.max(heroProducts.length, 1) ? "active" : ""}
+              onClick={() => setActiveSlide(index)}
+              aria-label={`Show premium pick ${index + 1}`}
+            />
           ))}
         </div>
         <div className="sf-hero-note">COD available nationwide</div>
@@ -918,7 +1064,7 @@ function CategoryGrid({ products = [], setPage }) {
           {categoryItems.map((c, index) => {
             const matchedProduct = matchProductForCategory(products, c);
             return (
-              <button key={`${c.name}-${index}`} className="cat-card sf-cat-card" onClick={() => setPage("shop")} aria-label={`Shop ${c.name}`}>
+              <button key={`${c.name}-${index}`} className={`cat-card sf-cat-card ${matchedProduct ? "" : "sf-cat-fallback-card"}`} onClick={() => setPage("shop")} aria-label={`Shop ${c.name}`}>
                 <div className="cat-icon-wrap sf-cat-icon"><ProductVisual product={matchedProduct} className="sf-cat-img" label={c.icon} imageOnly /></div>
                 <span className="cat-nm">{c.name}</span>
               </button>
@@ -955,39 +1101,41 @@ function FlashSale({ saleEndsAt, products, openProduct, addToCart, wishlist, tog
 }
 
 // ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
-function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlisted, isFlash, onBuyNow = null }) {
+function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlisted, isFlash }) {
   const off = percentageOff(product.price, product.compareAtPrice);
   const [hov, setHov] = useState(false);
+  const cleanName = cleanProductName(product.name);
+  const categoryLabel = displayCategoryLabel(product.category);
+  const toneClass = categoryToneClass(product.category);
+  const defaultVariant = product.variants?.[0] || null;
 
   return (
-    <div className={`pcard ${isFlash ? "pcard-flash" : ""}`}
+    <div className={`pcard ${toneClass} ${isFlash ? "pcard-flash" : ""}`}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}>
       <div className="pcard-img-wrap">
-        <button className="pcard-img-btn" onClick={() => onOpen(product)}>
-          {product.images?.[0] ? (
-            <SafeImage className={`pcard-img ${hov ? "pcard-img-z" : ""}`} src={product.images[0]} alt={cleanProductName(product.name)} />
-          ) : product.video ? (
-            <video src={product.video} className={`pcard-img ${hov ? "pcard-img-z" : ""}`} autoPlay muted loop playsInline preload="metadata" />
-          ) : (
-            <div className={`pcard-img sf-product-placeholder sf-product-skeleton ${hov ? "pcard-img-z" : ""}`}><span>Loading</span></div>
-          )}
+        <button className="pcard-img-btn" onClick={() => onOpen(product)} aria-label={`View ${cleanName}`}>
+          <ProductVisual product={product} className={`pcard-img ${hov ? "pcard-img-z" : ""}`} label={cleanName} preferVideo={!hov} forceImage={hov} />
         </button>
-        {product.category && <div className="pcard-cat pcard-cat-on-img">{product.category}</div>}
+        {product.category && <div className="pcard-cat pcard-cat-on-img">{categoryLabel}</div>}
         {off > 0 && <div className="pcard-sale-badge">-{off}%</div>}
-        <div className="pcard-hot-badge">🔥 Trending</div>
-        <button className={`pcard-wish ${isWishlisted ? "wished" : ""}`} onClick={() => onToggleWishlist(product.id)}>{isWishlisted ? "♥" : "♡"}</button>
-        <div className={`pcard-overlay ${hov ? "pcard-overlay-show" : ""}`}><button onClick={() => onOpen(product)}>Quick View</button></div>
+        <button className={`pcard-wish ${isWishlisted ? "wished" : ""}`} onClick={() => onToggleWishlist(product.id)} aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}>{isWishlisted ? "♥" : "♡"}</button>
       </div>
       <div className="pcard-body">
-        <h3 className="pcard-name" onClick={() => onOpen(product)}>{cleanProductName(product.name)}</h3>
-        <p className="pcard-desc">{product.shortDescription}</p>
+        <h3 className="pcard-name" onClick={() => onOpen(product)}>{cleanName}</h3>
+        <div className="pcard-chips">
+          <span>COD</span>
+          {(product.rating || product.reviewCount) && <span>{product.rating || 5}★</span>}
+          {defaultVariant?.label && <span>{defaultVariant.label}</span>}
+        </div>
         {(product.reviewCount || product.rating) ? <div className="pcard-rating"><RatingStars rating={product.rating || 5} /><span className="pcard-rv">{product.rating || 5} ({product.reviewCount || 24})</span></div> : null}
-        <div className="pcard-prices"><strong className="pcard-price">{money(product.price)}</strong>{product.compareAtPrice > product.price && <span className="pcard-old">{money(product.compareAtPrice)}</span>}</div>
-        <div className="pcard-foot"><span className="pcard-stock">COD available</span></div>
-        <div className="pcard-actions">
-          <Button variant="primary" size="sm" className="pcard-add" onClick={() => onAddToCart(product, 1, product.variants?.[0] || null)}>Add to Cart</Button>
-          <Button variant="outline" size="sm" className="pcard-buy" onClick={() => onBuyNow ? onBuyNow(product, 1, product.variants?.[0] || null) : onOpen(product)}>Buy Now</Button>
+        <div className="pcard-buyline">
+          <div className="pcard-prices">
+            <span className="pcard-price-label">Today price</span>
+            <strong className="pcard-price">{money(product.price)}</strong>
+            {product.compareAtPrice > product.price && <span className="pcard-old">{money(product.compareAtPrice)}</span>}
+          </div>
+          <Button variant="primary" size="sm" className="pcard-add" onClick={() => onAddToCart(product, 1, defaultVariant)}>Add to Cart</Button>
         </div>
       </div>
     </div>
@@ -995,21 +1143,21 @@ function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlis
 }
 
 // ─── PRODUCT ROW ──────────────────────────────────────────────────────────────
-function ProductRow({ title, eyebrow, products, openProduct, addToCart, wishlist, toggleWishlist, buyNow = null }) {
+function ProductRow({ title, eyebrow, products, openProduct, addToCart, wishlist, toggleWishlist }) {
   const ref = useRef(null);
   const scroll = dir => { if (ref.current) ref.current.scrollBy({ left: dir * 280, behavior: "smooth" }); };
   return (
     <section className="sec">
       <div className="row-hdr"><div><div className="eyebrow">{eyebrow}</div><h2 className="sec-h2">{title}</h2></div><div className="row-controls"><button className="row-arr" onClick={() => scroll(-1)}>‹</button><button className="row-arr" onClick={() => scroll(1)}>›</button><button className="view-all">View All →</button></div></div>
-      <div className="hscroll" ref={ref}><div className="hscroll-inner">{products.map(p => (<div key={p.id} className="hscroll-item"><ProductCard product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} onBuyNow={buyNow} /></div>))}</div></div>
+      <div className="hscroll" ref={ref}><div className="hscroll-inner">{products.map(p => (<div key={p.id} className="hscroll-item"><ProductCard product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} /></div>))}</div></div>
     </section>
   );
 }
 
 // ─── PRODUCT GRID ─────────────────────────────────────────────────────────────
-function PGrid({ products, openProduct, addToCart, wishlist, toggleWishlist, buyNow = null }) {
+function PGrid({ products, openProduct, addToCart, wishlist, toggleWishlist }) {
   if (!products.length) return <div className="empty-state"><span className="empty-ico">📦</span><h3>No products found</h3><p>Try a different search or category.</p></div>;
-  return <div className="pgrid">{products.map(p => (<ProductCard key={p.id} product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} onBuyNow={buyNow} />))}</div>;
+  return <div className="pgrid">{products.map(p => (<ProductCard key={p.id} product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} />))}</div>;
 }
 
 // ─── BRAND BANNER ─────────────────────────────────────────────────────────────
@@ -1127,7 +1275,7 @@ function SiteFooter({ setPage }) {
 }
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, buyNow, setPage }) {
+function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage }) {
   const featured = products.filter(p => p.featured);
   const bestSellers = [...products].sort((a, b) => Number(b.soldCount || b.sold_count || 0) - Number(a.soldCount || a.sold_count || 0));
   const topProducts = bestSellers.length ? bestSellers : products;
@@ -1148,11 +1296,11 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
       <CategoryGrid products={topProducts} setPage={setPage} />
       <TrendingCategories categories={homepageCategories} activeCategory={activeCategory} onChange={setActiveCategory} />
       <section className="sec sf-best-section">
-        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Fresh gadgets, home finds, and useful accessories selected for everyday life.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
-        <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} buyNow={buyNow} />
+        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Only the useful stuff, picked for real daily routines.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
+        <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
       </section>
       <section className="sf-selling-section">
-        <ProductRow title="Best Selling" eyebrow="Customer favorites" products={topProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} buyNow={buyNow} />
+        <ProductRow title="Best Selling" eyebrow="Customer favorites" products={topProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
       </section>
       <StatsSection />
       <Testimonials />
@@ -2288,6 +2436,8 @@ const CSS = `
     --color-bg:${DESIGN_TOKENS.colors.bg};--color-primary:${DESIGN_TOKENS.colors.primary};--color-primary-hover:${DESIGN_TOKENS.colors.primaryHover};--color-accent:${DESIGN_TOKENS.colors.accent};
     --color-text:${DESIGN_TOKENS.colors.text};--color-text-muted:${DESIGN_TOKENS.colors.muted};--color-card-bg:${DESIGN_TOKENS.colors.cardBg};--color-card-border:${DESIGN_TOKENS.colors.cardBorder};--color-urgency:${DESIGN_TOKENS.colors.urgency};
     --shadow-rest:${DESIGN_TOKENS.shadow.rest};--shadow-elevated:${DESIGN_TOKENS.shadow.elevated};
+    --shadow-warm:${DESIGN_TOKENS.shadow.warm};--gradient-hero:${DESIGN_TOKENS.gradients.hero};--gradient-dark-section:${DESIGN_TOKENS.gradients.darkSection};--gradient-gold-badge:${DESIGN_TOKENS.gradients.goldBadge};
+    --gradient-card-kitchen:${DESIGN_TOKENS.gradients.cardKitchen};--gradient-card-home:${DESIGN_TOKENS.gradients.cardHome};--gradient-card-gifts:${DESIGN_TOKENS.gradients.cardGifts};--gradient-card-default:${DESIGN_TOKENS.gradients.cardDefault};
     --red:var(--color-primary);--red-dark:var(--color-primary-hover);--red-soft:#eef5ef;--red-border:#c8d8ce;
     --forest:var(--color-primary);--forest-2:var(--color-primary-hover);--cream:var(--color-bg);--cream-2:var(--color-card-bg);--gold:var(--color-accent);
     --dark:var(--color-text);--text:var(--color-text);--muted:var(--color-text-muted);--light:#9a9a9a;
@@ -3633,6 +3783,308 @@ const CSS = `
     .pcard-actions{grid-template-columns:1fr 1fr;}
     .apf-actions{grid-template-columns:1fr;}
   }
+
+  /* --- Final storefront correction layer: Priority 0 + floating premium cards --- */
+  .live-feed-popup{
+    position:fixed;
+    left:16px;
+    bottom:16px;
+    width:min(260px,calc(100vw - 32px));
+    max-width:260px;
+    z-index:99998;
+    pointer-events:none;
+    animation:liveFeedIn .22s ease both,liveFeedOut .35s ease 3.65s forwards;
+    transition:opacity .18s ease,transform .18s ease;
+  }
+  .live-feed-hidden{opacity:0;transform:translateY(8px);visibility:hidden;}
+  .live-feed-inner{
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-height:64px;
+    padding:10px 34px 10px 10px;
+    border-radius:16px;
+    border:1px solid rgba(232,221,208,.95);
+    background:rgba(255,255,255,.96);
+    box-shadow:var(--shadow-warm);
+    pointer-events:none;
+  }
+  .live-feed-img{width:42px;height:42px;border-radius:10px;object-fit:cover;background:var(--cream);flex-shrink:0;}
+  .live-feed-text{min-width:0;}
+  .live-feed-name,.live-feed-action{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .live-feed-name{font-size:11px;color:var(--dark);line-height:1.35;}
+  .live-feed-action{font-size:11px;color:var(--muted);line-height:1.35;}
+  .live-feed-close{
+    position:absolute;
+    right:7px;
+    top:7px;
+    display:grid;
+    place-items:center;
+    width:24px;
+    height:24px;
+    border-radius:999px;
+    color:var(--forest);
+    background:#f7f2e9;
+    pointer-events:auto;
+    font-size:18px;
+    line-height:1;
+  }
+  @keyframes liveFeedIn{from{opacity:0;transform:translateX(-12px) translateY(8px)}to{opacity:1;transform:translateX(0) translateY(0)}}
+  @keyframes liveFeedOut{to{opacity:0;transform:translateX(-10px) translateY(8px)}}
+
+  .sf-hero{
+    background:var(--gradient-hero);
+    grid-template-columns:minmax(0,1fr) minmax(320px,.9fr);
+    min-height:auto;
+    padding:72px 52px 64px;
+    border-bottom:1px solid rgba(232,221,208,.95);
+    isolation:isolate;
+  }
+  .sf-hero::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    z-index:0;
+    background:
+      radial-gradient(circle at 82% 18%,rgba(201,168,76,.22),transparent 28%),
+      radial-gradient(circle at 8% 84%,rgba(27,67,50,.12),transparent 30%),
+      linear-gradient(90deg,rgba(255,255,255,.22),transparent 50%);
+  }
+  .sf-hero-copy,.sf-hero-showcase{z-index:1;}
+  .sf-hero-fade{animation:heroSoftFade .72s ease both;}
+  @keyframes heroSoftFade{
+    0%{opacity:0;transform:translateY(14px) scale(.985);filter:blur(5px);}
+    100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0);}
+  }
+  .sf-hero h1{max-width:660px;letter-spacing:-.045em;}
+  .sf-hero p{max-width:520px;font-size:18px;line-height:1.65;color:#5d5a54;}
+  .sf-hero-deal{background:var(--gradient-gold-badge) !important;color:#1a1a1a !important;border-color:transparent !important;box-shadow:0 10px 24px rgba(126,86,38,.16) !important;}
+  .sf-hero-showcase{
+    min-height:520px;
+    border:1px solid rgba(255,255,255,.68);
+    outline:1px solid rgba(201,168,76,.16);
+    background:
+      linear-gradient(145deg,rgba(255,255,255,.34),rgba(255,255,255,0) 42%),
+      radial-gradient(circle at 50% 30%,#fffaf1 0%,#efe2cd 58%,#e4d0ac 100%);
+    box-shadow:0 34px 80px rgba(126,86,38,.18),inset 0 1px 0 rgba(255,255,255,.72);
+    overflow:hidden;
+    justify-content:center;
+    padding:76px 32px 36px;
+  }
+  .sf-hero-showcase::after{
+    content:"";
+    position:absolute;
+    inset:18px;
+    border-radius:22px;
+    border:1px solid rgba(201,168,76,.2);
+    pointer-events:none;
+  }
+  .sf-hero-showcase::before{display:none;}
+  .sf-hero-product{position:relative;min-height:360px;margin:0;padding:0;isolation:isolate;}
+  .sf-hero-product::after{
+    content:"";
+    position:absolute;
+    left:19%;
+    right:19%;
+    bottom:74px;
+    height:28px;
+    border-radius:999px;
+    background:radial-gradient(ellipse at center,rgba(126,86,38,.26),rgba(126,86,38,0) 70%);
+    filter:blur(7px);
+    z-index:-1;
+  }
+  .sf-hero-product-img{max-height:330px;object-fit:contain;filter:drop-shadow(0 24px 26px rgba(126,86,38,.18));}
+  video.sf-hero-product-img{width:100%;height:330px;border-radius:18px;object-fit:contain;background:rgba(255,255,255,.26);}
+  .sf-hero-label{background:var(--gradient-gold-badge);color:#1a1a1a;box-shadow:0 12px 24px rgba(126,86,38,.18);}
+  .sf-hero-dots{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:7px;z-index:4;}
+  .sf-hero-dots button{width:7px;height:7px;border-radius:999px;background:rgba(27,67,50,.28);transition:width .2s ease,background .2s ease;}
+  .sf-hero-dots button.active{width:22px;background:var(--forest);}
+
+  .sf-review-section,.footer{background:var(--gradient-dark-section);}
+  .bundle-discount-badge{background:var(--gradient-gold-badge) !important;color:#1a1a1a !important;border-color:transparent !important;}
+
+  .sf-cat-icon{width:176px;height:104px;border-radius:999px;background:#fff;box-shadow:var(--shadow-warm);}
+  .sf-cat-img{width:100%;height:100%;object-fit:cover;object-position:center;border-radius:999px;padding:0;}
+  .sf-cat-fallback-card .sf-cat-icon{background:linear-gradient(135deg,#fffaf1,#e8d9c0);}
+  .sf-cat-fallback-card .sf-product-placeholder{display:grid;place-items:center;color:var(--forest);font-size:34px;background:transparent;}
+
+  .pcard{
+    --card-gradient:var(--gradient-card-default);
+    --card-button:linear-gradient(135deg,#1b4332 0%,#2d6a4f 100%);
+    position:relative;
+    overflow:hidden;
+    border:1px solid rgba(232,221,208,.92);
+    border-radius:24px;
+    background:#fffaf6;
+    box-shadow:var(--shadow-warm);
+    transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;
+  }
+  .pcard-tone-kitchen{--card-gradient:var(--gradient-card-kitchen);--card-button:linear-gradient(135deg,#d88a36 0%,#a95d25 100%);}
+  .pcard-tone-home{--card-gradient:var(--gradient-card-home);--card-button:linear-gradient(135deg,#1b4332 0%,#5d8b64 100%);}
+  .pcard-tone-gifts{--card-gradient:var(--gradient-card-gifts);--card-button:linear-gradient(135deg,#c9a84c 0%,#9d7728 100%);}
+  .pcard:hover{transform:translateY(-4px);box-shadow:0 24px 54px rgba(126,86,38,.18);border-color:#decbb4;}
+  .pcard-img-wrap{
+    position:relative;
+    margin:10px 10px 0;
+    aspect-ratio:1.05;
+    border-radius:22px 22px 18px 18px;
+    background:var(--card-gradient);
+    border:1px solid rgba(255,255,255,.55);
+    padding:0;
+    overflow:hidden;
+  }
+  .pcard-img-btn{position:relative;width:100%;height:100%;display:grid;place-items:center;padding:14%;border-radius:inherit;background:transparent;overflow:visible;}
+  .pcard-img-btn::after{
+    content:"";
+    position:absolute;
+    left:24%;
+    right:24%;
+    bottom:16%;
+    height:18px;
+    border-radius:999px;
+    background:radial-gradient(ellipse at center,rgba(126,86,38,.22),rgba(126,86,38,0) 70%);
+    filter:blur(6px);
+  }
+  .pcard-img{position:relative;z-index:1;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 16px 16px rgba(91,64,34,.16));transition:transform .15s ease;}
+  video.pcard-img{border-radius:14px;background:rgba(255,255,255,.26);}
+  .pcard-img-z{transform:translateY(-3px) scale(1.03);}
+  .pcard-cat-on-img{
+    top:12px;
+    left:12px;
+    max-width:calc(100% - 68px);
+    height:28px;
+    display:inline-flex;
+    align-items:center;
+    border:0;
+    border-radius:999px;
+    background:var(--gradient-gold-badge);
+    color:#1a1a1a;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:0;
+    text-transform:none;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:clip;
+    box-shadow:0 8px 18px rgba(126,86,38,.16);
+  }
+  .pcard-sale-badge{
+    left:12px;
+    bottom:12px;
+    border-radius:999px;
+    background:rgba(27,67,50,.9);
+    color:#fff;
+    font-weight:800;
+  }
+  .pcard-wish{
+    top:12px;
+    right:12px;
+    width:36px;
+    height:36px;
+    border:1px solid rgba(255,255,255,.34);
+    background:rgba(27,67,50,.78);
+    color:#fff;
+    box-shadow:none;
+    backdrop-filter:blur(10px);
+  }
+  .pcard-wish.wished,.pcard-wish:hover{background:var(--forest);color:#fff;border-color:rgba(255,255,255,.55);}
+  .pcard-body{padding:16px;gap:9px;background:#fffaf6;}
+  .pcard-name{
+    font-size:16px;
+    line-height:1.28;
+    font-weight:800;
+    letter-spacing:0;
+    color:var(--dark);
+    font-family:var(--font-body);
+    word-break:normal;
+    overflow-wrap:normal;
+    hyphens:none;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    min-height:41px;
+  }
+  .pcard-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:24px;}
+  .pcard-chips span{
+    display:inline-flex;
+    align-items:center;
+    height:24px;
+    border-radius:999px;
+    border:1px solid #e3d5c4;
+    color:#6b6258;
+    background:#fff;
+    padding:0 8px;
+    font-size:10px;
+    font-weight:750;
+    white-space:nowrap;
+  }
+  .pcard-rating{display:none;}
+  .pcard-buyline{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:auto;}
+  .pcard-prices{display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin:0;min-width:0;}
+  .pcard-price-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#81776b;font-weight:850;}
+  .pcard-price{font-size:18px;line-height:1.1;color:var(--forest);font-weight:900;}
+  .pcard-old{font-size:11px;color:#a79c8e;text-decoration:line-through;}
+  .pcard-add{
+    min-height:38px;
+    width:auto;
+    flex:0 0 auto;
+    padding:0 14px;
+    border-radius:999px !important;
+    background:var(--card-button) !important;
+    color:#fff !important;
+    border:0 !important;
+    box-shadow:0 10px 20px rgba(27,67,50,.16);
+    font-size:11px;
+    font-weight:850 !important;
+    white-space:nowrap;
+  }
+  .pcard-add:hover{transform:translateY(-1px);filter:saturate(1.06);}
+  .pcard-actions,.pcard-buy,.pcard-foot,.pcard-desc,.pcard-overlay,.pcard-hot-badge{display:none !important;}
+
+  @media(max-width:768px){
+    .hdr-login-btn,.hdr-user-wrap{display:none !important;}
+    .hdr-right{gap:6px;}
+    .hdr-cart-btn{min-width:48px;padding:8px 11px;}
+    .wa-float{left:auto;right:12px;bottom:18px;}
+    .live-feed-popup{left:16px;bottom:16px;width:min(260px,calc(100vw - 32px));}
+    .live-feed-inner{pointer-events:none;}
+    .live-feed-close{display:grid;pointer-events:auto;}
+    .sf-hero{grid-template-columns:1fr;padding:30px 16px 38px;gap:24px;}
+    .sf-hero-copy{width:100%;max-width:100%;order:1;}
+    .sf-hero h1{font-size:clamp(2.35rem,11vw,3.1rem);}
+    .sf-hero p{width:100%;max-width:310px;}
+    .sf-hero-actions{grid-template-columns:1fr 1fr;}
+    .sf-hero-actions .sf-btn{width:100%;padding:0 10px;font-size:11px;}
+    .sf-hero-trust{width:100%;}
+    .sf-hero-trust span{padding:8px 10px;font-size:11px;}
+    .sf-hero-showcase{order:2;width:100%;justify-self:stretch;min-height:390px;padding:62px 18px 34px;border-radius:24px;}
+    .sf-hero-product{min-height:290px;}
+    .sf-hero-product::after{bottom:64px;}
+    .sf-hero-product-img{max-height:235px;}
+    video.sf-hero-product-img{height:235px;}
+    .sf-cat-card{min-width:142px;}
+    .sf-cat-icon{width:138px;height:88px;}
+    .storefront-light .pgrid,.pgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+    .pcard{border-radius:20px;}
+    .pcard-img-wrap{margin:8px 8px 0;border-radius:18px;aspect-ratio:1.02;}
+    .pcard-img-btn{padding:13%;}
+    .pcard-body{padding:13px 11px 12px;gap:8px;}
+    .pcard-name{font-size:14px;min-height:36px;}
+    .pcard-chips span{font-size:9px;height:22px;padding:0 7px;}
+    .pcard-buyline{align-items:flex-start;flex-direction:column;gap:8px;}
+    .pcard-add{width:100%;min-height:36px;font-size:10px;}
+    .pcard-price{font-size:16px;}
+  }
+  @media(max-width:360px){
+    .sf-hero-actions{grid-template-columns:1fr;}
+    .storefront-light .pgrid,.pgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+    .pcard-name{font-size:13px;}
+    .pcard-body{padding:11px 9px;}
+    .pcard-add{padding:0 8px;}
+  }
 `;
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
@@ -3888,7 +4340,7 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} setPage={navigate} />;
+      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
       case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
       case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
       case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
@@ -3904,7 +4356,7 @@ export default function App() {
       case "faq": return <FAQPage faqs={faqs} />;
       case "track-order": return <TrackOrderPage settings={settings} />;
       case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
-      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} setPage={navigate} />;
+      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
     }
   };
   const isReady = !loading && !minLoading;

@@ -23,5 +23,15 @@ export const DESIGN_TOKENS = {
   shadow: {
     rest: "0 8px 22px rgba(27,67,50,.08)",
     elevated: "0 18px 38px rgba(27,67,50,.14)",
+    warm: "0 18px 44px rgba(126,86,38,.14)",
+  },
+  gradients: {
+    hero: "linear-gradient(180deg, #f5ede0 0%, #ede2d0 100%)",
+    darkSection: "linear-gradient(135deg, #1b4332 0%, #143726 100%)",
+    goldBadge: "linear-gradient(135deg, #c9a84c 0%, #b8943a 100%)",
+    cardKitchen: "linear-gradient(135deg, #fff3e0 0%, #f5ddb8 100%)",
+    cardHome: "linear-gradient(135deg, #eaf2e9 0%, #cfe3cf 100%)",
+    cardGifts: "linear-gradient(135deg, #f9ecd9 0%, #ecd9a8 100%)",
+    cardDefault: "linear-gradient(135deg, #f5ede0 0%, #e8d9c0 100%)",
   },
 };
