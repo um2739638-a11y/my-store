@@ -127,6 +127,28 @@ function formatDate(date) {
   if (!date) return "-";
   return new Date(date).toLocaleString("en-PK", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
+function getOrderCustomer(order = {}) {
+  return order.customer && typeof order.customer === "object" ? order.customer : {};
+}
+function getOrderCustomerName(order = {}) {
+  const customer = getOrderCustomer(order);
+  return customer.name || order.customer_name || order.name || "Customer";
+}
+function getOrderCustomerPhone(order = {}) {
+  const customer = getOrderCustomer(order);
+  return customer.phone || order.customer_phone || order.phone || "";
+}
+function getOrderCustomerCity(order = {}) {
+  const customer = getOrderCustomer(order);
+  return customer.city || order.customer_city || order.city || "";
+}
+function getOrderCustomerAddress(order = {}) {
+  const customer = getOrderCustomer(order);
+  const address = customer.address || order.customer_address || order.address || order.shipping_address || "";
+  const city = getOrderCustomerCity(order);
+  if (address && city && !String(address).toLowerCase().includes(String(city).toLowerCase())) return `${address}, ${city}`;
+  return address || city || "No address provided";
+}
 function buildStars(rating = 0) {
   const rounded = Math.round(rating);
   return [1, 2, 3, 4, 5].map((n) => n <= rounded);
@@ -139,7 +161,7 @@ const STOREFRONT_CATEGORIES = [
   { name: "Smart Wearables", key: "smart", icon: "⌚", keywords: ["smart", "wearable", "watch", "smartwatch", "band", "fitness"] },
   { name: "Mobile Accessories", key: "mobile", icon: "📱", keywords: ["mobile", "phone", "case", "cover", "protector", "holder", "stand", "accessory"] },
   { name: "Power & Charging", key: "power", icon: "🔌", keywords: ["power", "charging", "charger", "adapter", "cable", "usb", "pd", "fast charger"] },
-  { name: "Kitchen Tools", key: "kitchen", icon: "🍳", keywords: ["kitchen", "chopper", "blender", "juicer", "grinder", "cooking", "electric"] },
+  { name: "Kitchen", key: "kitchen", icon: "🍳", keywords: ["kitchen", "chopper", "blender", "juicer", "grinder", "cooking", "electric"] },
   { name: "Home Gadgets", key: "home", icon: "🏠", keywords: ["home", "gadget", "lamp", "light", "fan", "humidifier", "organizer", "mini"] },
   { name: "Car Accessories", key: "car", icon: "🚗", keywords: ["car", "vehicle", "auto", "vacuum", "holder", "charger"] },
   { name: "Cleaning & Storage", key: "cleaning", icon: "🧼", keywords: ["cleaning", "cleaner", "storage", "organizer", "lint", "mop", "box"] },
@@ -154,41 +176,8 @@ function categoryToneClass(category = "") {
   if (/gift|deal|summer/.test(cat)) return "pcard-tone-gifts";
   return "pcard-tone-default";
 }
-function productMatchesCategory(product, category) {
-  const cat = normalizeCategoryName(product?.category);
-  const text = normalizeCategoryName([product?.name, product?.shortDescription, product?.description].join(" "));
-  const productName = normalizeCategoryName(product?.name);
-  const key = normalizeCategoryName(category.key);
-  const name = normalizeCategoryName(category.name);
-  if (key === "audio") return /audio|earbud|earbuds|headphone|speaker|sound|handsfree|bluetooth/.test(text) || /audio/.test(cat);
-  if (key === "kitchen") return /kitchen|baking|chopper|blender|juicer|mat/.test(cat) || /kitchen|baking|chopper|blender|juicer|mat/.test(text);
-  if (key === "home") return /home/.test(cat) || /toothpaste|bathroom|lamp|light|organizer|home/.test(text);
-  if (key === "cleaning") return /cleaning|storage/.test(cat) || /organizer|storage|hooks|wall/.test(productName);
-  if (key === "smart") return /smart|wearable|watch|fitness/.test(cat) || /smart|wearable|watch|fitness/.test(productName);
-  if (key === "mobile") return /mobile/.test(cat) || /phone|mobile|case|cover|protector/.test(productName);
-  if (key === "power") return /power|charging/.test(cat) || /charger|adapter|cable|power bank|pd charger/.test(productName);
-  if (key === "car") return /car|vehicle|auto/.test(cat) || /car|vehicle|vacuum/.test(productName);
-  return cat.includes(key) || cat.includes(name);
-}
-function categoryProductPriority(product, category) {
-  const text = normalizeCategoryName([product?.category, product?.name].join(" "));
-  if (category.key === "kitchen" && /baking mat/.test(text)) return 40;
-  if (category.key === "home" && /toothpaste dispenser/.test(text)) return 40;
-  if (category.key === "audio" && /m16|earbud|bluetooth/.test(text)) return 40;
-  if (category.key === "gifts" && /crystal|moon|lamp/.test(text)) return 40;
-  if (category.key === "cleaning" && /toothpaste|dispenser|bathroom/.test(text)) return -8;
-  if (/wall hooks|self adhesive/.test(text) && ["home", "cleaning"].includes(category.key)) return -8;
-  if (/vegetable cutter/.test(text) && category.key === "kitchen") return -6;
-  return productMatchesCategory(product, category) ? 10 : 0;
-}
 function matchProductForCategory(products = [], category) {
-  const exactMatch = products.find(product => normalizeCategoryName(product?.category) === normalizeCategoryName(category?.name));
-  if (exactMatch) return exactMatch;
-  const ranked = products
-    .map(product => ({ product, score: categoryProductPriority(product, category) }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score);
-  return ranked[0]?.product || null;
+  return products.find(product => normalizeCategoryName(product?.category) === normalizeCategoryName(category?.name)) || null;
 }
 // ─── CLOUDINARY UPLOAD ────────────────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dntz5x9s4";        // from dashboard
@@ -1485,6 +1474,10 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
       <section className="sec">
         <div className="breadcrumb"><span>Home</span> › <span>{product.category}</span> › <span className="bc-cur">{product.name}</span></div>
         <div className="pdp">
+          <div className="pdp-mobile-head">
+            <div className="pdp-cat">{product.category}</div>
+            <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
+          </div>
           <div className="pdp-gallery">
             <div className="pdp-main-box">
               {show3d ? (
@@ -2366,7 +2359,13 @@ function AdminPage({
           <h3>All Orders ({orders.length})</h3>
           <div className="orders-list">{orders.length ? orders.map(o => (
             <div key={o.orderId || o.order_id || o.id} className="order-row">
-              <div><strong>{o.orderId || o.order_id || o.id}</strong><span>{o.customer?.name || o.customer_name} · {o.customer?.city || o.city} · {money(o.total)}</span><span style={{ fontSize: "11px", color: "#9ca3af" }}>{formatDate(o.createdAt || o.created_at)}</span></div>
+              <div>
+                <strong>{o.orderId || o.order_id || o.id}</strong>
+                <span>{getOrderCustomerName(o)} · {money(o.total)}</span>
+                <span className="order-address">📍 {getOrderCustomerAddress(o)}</span>
+                {getOrderCustomerPhone(o) && <span className="order-phone">☎ {getOrderCustomerPhone(o)}</span>}
+                <span style={{ fontSize: "11px", color: "#9ca3af" }}>{formatDate(o.createdAt || o.created_at)}</span>
+              </div>
               <div className="order-acts">
                 <span className={`o-status o-${(o.status || "").toLowerCase()}`}>{o.status}</span>
                 <button className="o-btn" onClick={() => updateOrderStatus(o.id || o.order_id || o.orderId, "Confirmed")}>Confirm</button>
@@ -3023,6 +3022,7 @@ const CSS = `
 
   /* ── PRODUCT DETAIL PAGE ── */
   .pdp{display:grid;grid-template-columns:1fr 480px;gap:52px;align-items:start}
+  .pdp-mobile-head{display:none;}
   .pdp-gallery{display:flex;flex-direction:column;gap:12px;position:sticky;top:90px;}
   .pdp-main-box{border-radius:var(--r-xl);overflow:hidden;background:var(--bg-soft);position:relative;aspect-ratio:1;border:1.5px solid var(--border);max-height:500px;}
   .pdp-main-img{width:100%;height:100%;object-fit:contain;max-height:500px;}
@@ -3310,6 +3310,8 @@ const CSS = `
   .order-row>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0;}
   .order-row strong{font-size:14px;font-weight:700;color:var(--dark);font-family:var(--font-head);}
   .order-row span{font-size:12px;color:var(--muted)}
+  .order-address{color:var(--dark) !important;line-height:1.45;white-space:normal;overflow-wrap:anywhere;}
+  .order-phone{color:var(--forest) !important;font-weight:700;}
   .order-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .o-status{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:var(--bg-gray);color:var(--muted);}
   .o-pending{background:#fff7ed;color:#ea580c}
@@ -3818,11 +3820,16 @@ const CSS = `
     .sf-selling-section .row-hdr{grid-template-columns:1fr;gap:12px;text-align:center;}
     .sf-selling-section .row-hdr>div:first-child,.sf-selling-section .row-controls{grid-column:auto;justify-content:center;}
     .pdp{grid-template-columns:minmax(0,1fr);gap:22px;width:100%;overflow:hidden;}
+    .pdp-mobile-head{display:block;order:-2;width:100%;padding:0 2px 4px;}
+    .pdp-mobile-head .pdp-title{font-size:clamp(24px,8vw,34px);line-height:1.08;margin:0;color:var(--forest);letter-spacing:-.035em;}
+    .pdp-mobile-head .pdp-cat{font-size:11px;margin-bottom:6px;color:var(--forest);}
     .pdp-info{gap:12px;width:100%;overflow:hidden;}
+    .pdp-info>.pdp-cat,.pdp-info>.pdp-title{display:none;}
     .pdp-title{font-size:clamp(20px,7vw,28px);line-height:1.2;}
     .pdp-price{font-size:28px;}
     .pdp-rating-row,.pdp-price-row,.pdp-trust-badges,.pdp-proof{gap:8px;}
     .pdp-main-box{border-radius:14px;max-height:none;}
+    .pdp-trust-lines{margin-top:10px;padding:14px;gap:9px;}
     .pdp-thumbs{padding-bottom:2px;}
     .pdp-thumb{width:58px;height:58px;border-radius:10px;}
     .pdp-qty-selector{padding:10px;align-items:center;}
