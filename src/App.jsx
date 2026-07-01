@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS = {
   storeName: STORE_BRAND.name,
   heroTitle: "Pakistan's #1 Trending Gadgets & Lifestyle Store",
   heroSubtitle:
-    "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 10,000+ happy customers.",
+    "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 1,000+ happy customers.",
   announcement: "FREE DELIVERY ON ORDERS ABOVE Rs 3,000  •  CASH ON DELIVERY AVAILABLE  •  LIMITED TIME DEALS",
   supportEmail: "um2739638@gmail.com",
   whatsappNumber: "923008631809",
@@ -74,6 +74,11 @@ function percentageOff(price, compareAtPrice) {
   const c = Number(compareAtPrice || 0);
   if (!p || !c || c <= p) return 0;
   return Math.round(((c - p) / c) * 100);
+}
+function fallbackSalePercent(product = {}) {
+  const seed = String(product.id ?? product.name ?? product.category ?? "sale");
+  const score = Array.from(seed).reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 1), 0);
+  return score % 2 === 0 ? 50 : 30;
 }
 function toNullableNumber(value) {
   if (value === "" || value === null || value === undefined) return null;
@@ -139,25 +144,8 @@ const STOREFRONT_CATEGORIES = [
   { name: "Car Accessories", key: "car", icon: "🚗", keywords: ["car", "vehicle", "auto", "vacuum", "holder", "charger"] },
   { name: "Cleaning & Storage", key: "cleaning", icon: "🧼", keywords: ["cleaning", "cleaner", "storage", "organizer", "lint", "mop", "box"] },
 ];
-const CATEGORY_LABELS = {
-  "home essentials": "Home",
-  "home gadgets": "Home",
-  "summer deals": "Deals",
-  "kitchen tools": "Kitchen",
-  "mobile accessories": "Mobile",
-  "smart wearables": "Wearables",
-  "power & charging": "Charging",
-  "car accessories": "Car",
-  "cleaning & storage": "Storage",
-};
 function normalizeCategoryName(value = "") {
   return String(value).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
-}
-function displayCategoryLabel(category = "") {
-  const key = String(category).toLowerCase().trim();
-  if (CATEGORY_LABELS[key]) return CATEGORY_LABELS[key];
-  const words = String(category || "Premium").replace(/&/g, "and").split(/\s+/).filter(Boolean);
-  return words.length > 2 ? words.slice(0, 2).join(" ") : (words.join(" ") || "Premium");
 }
 function categoryToneClass(category = "") {
   const cat = normalizeCategoryName(category);
@@ -194,6 +182,8 @@ function categoryProductPriority(product, category) {
   return productMatchesCategory(product, category) ? 10 : 0;
 }
 function matchProductForCategory(products = [], category) {
+  const exactMatch = products.find(product => normalizeCategoryName(product?.category) === normalizeCategoryName(category?.name));
+  if (exactMatch) return exactMatch;
   const ranked = products
     .map(product => ({ product, score: categoryProductPriority(product, category) }))
     .filter(item => item.score > 0)
@@ -257,7 +247,8 @@ function AnimatedCounter({ target, duration = 2000 }) {
   const str = String(target);
   let display = count;
   if (str.includes("K+")) display = count >= 10 ? "10K+" : count + "K+";
-  else if (str.includes("+")) display = count + "+";
+  else if (str.includes("%")) display = `${count}%`;
+  else if (str.includes("+")) display = `${Number(count || 0).toLocaleString("en-PK")}+`;
   else if (str.includes("d")) display = count + "d";
   return <span ref={ref}>{display}{str.includes("★") ? " ★" : ""}{str.includes("/5") ? "/5" : ""}</span>;
 }
@@ -340,7 +331,7 @@ function SplashLoader({ ready }) {
   useEffect(() => {
     if (ready) {
       setPhase("exit");
-      const timer = setTimeout(() => setVisible(false), 1000);
+      const timer = setTimeout(() => setVisible(false), 250);
       return () => clearTimeout(timer);
     }
   }, [ready]);
@@ -613,7 +604,7 @@ function AuthModal({ onClose, onLogin, isAdminLogin }) {
           <div className="auth-left-content">
             <div className="auth-logo-big"><span className="auth-logo-mark">ISO</span></div>
             <h2 className="auth-tagline">Pakistan's<br />Premium<br />Store</h2>
-            <p className="auth-sub-tag">10,000+ happy customers across Pakistan.</p>
+            <p className="auth-sub-tag">1,000+ happy customers across Pakistan.</p>
             <div className="auth-perks">
               {["Cash on Delivery", "Fast 3–5 Day Delivery", "Easy Returns", "WhatsApp Support"].map(p => (
                 <div key={p} className="auth-perk"><span className="auth-perk-check">✓</span>{p}</div>
@@ -653,7 +644,7 @@ function AuthModal({ onClose, onLogin, isAdminLogin }) {
             </>
           ) : (
             <>
-              <div className="auth-header"><h3 className="auth-title">Create Account</h3><p className="auth-desc">Join 10,000+ happy customers</p></div>
+              <div className="auth-header"><h3 className="auth-title">Create Account</h3><p className="auth-desc">Join 1,000+ happy customers</p></div>
               <form onSubmit={handleRegister} className="auth-form">
                 <div className="auth-field-wrap"><label>Full Name</label><div className="auth-inp-wrap"><span className="auth-inp-ico">👤</span><input className="auth-inp" placeholder="Your full name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div></div>
                 <div className="auth-field-wrap"><label>Email Address</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div></div>
@@ -767,7 +758,7 @@ function BundleSelector({ product, selectedBundle, onSelect }) {
             <button key={b.qty} className={`bundle-option ${isSelected ? "bundle-selected" : ""} ${b.popular ? "bundle-popular" : ""}`} onClick={() => onSelect({ ...b, totalPrice: total, originalPrice: orig })}>
               <div className="bundle-option-inner">
                 <div className="bundle-radio"><div className={`bundle-radio-dot ${isSelected ? "active" : ""}`} /></div>
-                <div className="bundle-qty-info"><span className="bundle-qty-label">Buy {b.qty}</span><span className="bundle-sub-label">{b.qty === 1 ? "Base price" : `${b.qty} item bundle`}</span></div>
+                <div className="bundle-qty-info"><span className="bundle-qty-label">Order {b.qty}</span><span className="bundle-sub-label">{b.qty === 1 ? "Base price" : `${b.qty} item bundle`}</span></div>
                 <div className="bundle-discount-badge">{b.label}</div>
                 <div className="bundle-price-info"><span className="bundle-price">{money(total)}</span><span className="bundle-orig-price">{money(orig)}</span></div>
               </div>
@@ -780,17 +771,18 @@ function BundleSelector({ product, selectedBundle, onSelect }) {
   );
 }
 
-function BuyNowButton({ onClick, label = "Buy Now" }) {
+function BuyNowButton({ onClick, label = "Order Now" }) {
   return <Button variant="outline" size="lg" className="pdp-buy-btn" onClick={onClick}>{label}</Button>;
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ settings, page, setPage, search, setSearch, cartCount, wishlistCount, currentUser, onOpenAuth, onLogout }) {
+function Header({ settings, page, setPage, search, setSearch, cartCount, wishlistCount, currentUser, onOpenAuth, onLogout, onCategorySelect }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const availableCategories = useMemo(() => STOREFRONT_CATEGORIES, []);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 50);
@@ -810,11 +802,16 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
   }, [mobileMenuOpen]);
 
   const navTo = (p) => { setPage(p); setMobileMenuOpen(false); };
+  const selectCategory = (category) => {
+    if (onCategorySelect) onCategorySelect(category);
+    else navTo("shop");
+    setMobileMenuOpen(false);
+  };
 
   return (
     <>
       <header className={`hdr ${scrolled ? "hdr-scrolled" : ""}`}>
-        <div className="hdr-announce"><div className="hdr-announce-inner">SHOP THE LATEST COLLECTION • BUY ANY 4 PRODUCTS & GET FREE SHIPPING • 7-DAY EASY RETURN POLICY</div></div>
+        <div className="hdr-announce"><div className="hdr-announce-inner">SHOP THE LATEST COLLECTION • ORDER ANY 4 PRODUCTS & GET FREE SHIPPING • 7-DAY EASY RETURN POLICY</div></div>
         <div className="hdr-body">
           <button className="hdr-hamburger" onClick={() => setMobileMenuOpen(v => !v)} aria-label="Menu">
             <span className={`ham-line ${mobileMenuOpen ? "ham-open" : ""}`}></span>
@@ -887,12 +884,13 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
             <button onClick={() => setMobileSearchOpen(false)} style={{ padding: "0 12px", color: "var(--muted)", fontSize: "18px" }}>✕</button>
           </div>
         )}
-        <div className="hdr-cats desktop-only">
-          {STOREFRONT_CATEGORIES.map(c => (
-            <button key={c.name} className="hdr-cat" onClick={() => navTo("shop")}>{c.name}</button>
-          ))}
-          <button className="hdr-cat hdr-cat-deal" onClick={() => navTo("shop")}>Deals</button>
-        </div>
+        {availableCategories.length > 0 && (
+          <div className="hdr-cats desktop-only">
+            {availableCategories.map(c => (
+              <button key={c.key} className="hdr-cat" onClick={() => selectCategory(c.name)}>{c.name}</button>
+            ))}
+          </div>
+        )}
       </header>
 
       {mobileMenuOpen && (
@@ -920,13 +918,17 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
                 </button>
               )}
             </nav>
-            <div className="mobile-menu-divider" />
-            <div className="mobile-menu-section-title">Categories</div>
-            <div className="mobile-cats-grid">
-              {STOREFRONT_CATEGORIES.map(c => (
-                <button key={c.name} className="mobile-cat-chip" onClick={() => navTo("shop")}>{c.name}</button>
-              ))}
-            </div>
+            {availableCategories.length > 0 && (
+              <>
+                <div className="mobile-menu-divider" />
+                <div className="mobile-menu-section-title">Categories</div>
+                <div className="mobile-cats-grid">
+                  {availableCategories.map(c => (
+                    <button key={c.key} className="mobile-cat-chip" onClick={() => selectCategory(c.name)}>{c.name}</button>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="mobile-menu-divider" />
             <div className="mobile-menu-section-title">Account</div>
             <nav className="mobile-nav">
@@ -1019,7 +1021,7 @@ function HeroBanner({ openProduct, products, setPage }) {
           <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>Shop Best Sellers</button>
           <button className="sf-btn sf-btn-secondary" onClick={() => setPage("shop")}>View All Products</button>
         </div>
-        <div className="sf-hero-trust"><span>Cash on delivery</span><span className="sf-hero-deal">Buy any 4, free shipping</span><span>Hand-checked products</span><span>7-day return support</span></div>
+        <div className="sf-hero-trust"><span>Cash on delivery</span><span className="sf-hero-deal">Order any 4, free shipping</span><span>Hand-checked products</span><span>7-day return support</span></div>
       </div>
       <div className="sf-hero-showcase">
         <div className="sf-hero-label">Premium pick</div>
@@ -1054,7 +1056,7 @@ function CertificationsSection() {
     { icon: "🏅", title: "ISO Certified Quality", sub: "Products meet international standards", color: "#f59e0b" },
     { icon: "🔒", title: "SSL Secured Checkout", sub: "256-bit encryption on all transactions", color: "#3b82f6" },
     { icon: "✅", title: "100% Authentic Products", sub: "Verified & sourced from trusted suppliers", color: "#10b981" },
-    { icon: "🛡️", title: "Buyer Protection", sub: "Full refund on damaged items", color: "#8b5cf6" },
+    { icon: "🛡️", title: "Order Protection", sub: "Full refund on damaged items", color: "#8b5cf6" },
     { icon: "🇵🇰", title: "Pakistan Trusted Store", sub: "Registered & operating since 2021", color: "#d90429" },
     { icon: "💬", title: "24/7 WhatsApp Support", sub: "Dedicated team always available", color: "#25D366" },
   ];
@@ -1101,17 +1103,17 @@ function TrustBar() {
 }
 
 // ─── CATEGORY GRID ────────────────────────────────────────────────────────────
-function CategoryGrid({ products = [], setPage }) {
-  const categoryItems = [...STOREFRONT_CATEGORIES, ...STOREFRONT_CATEGORIES];
+function CategoryGrid({ products = [], onCategorySelect }) {
+  const categoryItems = useMemo(() => [...STOREFRONT_CATEGORIES, ...STOREFRONT_CATEGORIES], []);
   return (
     <section className="sec cat-sec sf-cats-section">
       <div className="sec-head sec-centered"><div className="eyebrow">Curated departments</div><h2 className="sec-h2">Shop By Categories</h2></div>
       <div className="sf-cat-marquee" aria-label="Store categories">
-        <div className="cat-grid sf-cat-grid sf-cat-track">
+        <div className="cat-grid sf-cat-grid sf-cat-track-live">
           {categoryItems.map((c, index) => {
             const matchedProduct = matchProductForCategory(products, c);
             return (
-              <button key={`${c.name}-${index}`} className={`cat-card sf-cat-card ${matchedProduct ? "" : "sf-cat-fallback-card"}`} onClick={() => setPage("shop")} aria-label={`Shop ${c.name}`}>
+              <button key={`${c.name}-${index}`} className={`cat-card sf-cat-card ${matchedProduct ? "" : "sf-cat-fallback-card"}`} onClick={() => onCategorySelect?.(c.name)} aria-label={`Shop ${c.name}`}>
                 <div className="cat-icon-wrap sf-cat-icon"><ProductVisual product={matchedProduct} className="sf-cat-img" label={c.icon} imageOnly /></div>
                 <span className="cat-nm">{c.name}</span>
               </button>
@@ -1134,6 +1136,17 @@ function TrendingCategories({ categories, activeCategory, onChange }) {
   );
 }
 
+function SaleRibbon() {
+  const items = ["Sale Live", "Up to 50% Off", "COD Available", "Limited Stock", "Free Delivery Deals"];
+  return (
+    <div className="sale-ribbon" aria-label="Current sale offers">
+      <div className="sale-ribbon-track">
+        {[...items, ...items, ...items].map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}
+      </div>
+    </div>
+  );
+}
+
 // ─── FLASH SALE ───────────────────────────────────────────────────────────────
 function FlashSale({ saleEndsAt, products, openProduct, addToCart, wishlist, toggleWishlist }) {
   return (
@@ -1152,9 +1165,9 @@ function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlis
   const off = percentageOff(product.price, product.compareAtPrice);
   const [hov, setHov] = useState(false);
   const cleanName = cleanProductName(product.name);
-  const categoryLabel = displayCategoryLabel(product.category);
   const toneClass = categoryToneClass(product.category);
   const defaultVariant = product.variants?.[0] || null;
+  const promoLabel = `-${off > 0 ? off : fallbackSalePercent(product)}%`;
 
   return (
     <div className={`pcard ${toneClass} ${isFlash ? "pcard-flash" : ""}`}
@@ -1164,8 +1177,7 @@ function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlis
         <button className="pcard-img-btn" onClick={() => onOpen(product)} aria-label={`View ${cleanName}`}>
           <ProductVisual product={product} className={`pcard-img ${hov ? "pcard-img-z" : ""}`} label={cleanName} preferVideo={!hov} forceImage={hov} />
         </button>
-        {product.category && <div className="pcard-cat pcard-cat-on-img">{categoryLabel}</div>}
-        {off > 0 && <div className="pcard-sale-badge">-{off}%</div>}
+        <div className="pcard-cat pcard-cat-on-img">{promoLabel}</div>
         <button className={`pcard-wish ${isWishlisted ? "wished" : ""}`} onClick={() => onToggleWishlist(product.id)} aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}>{isWishlisted ? "♥" : "♡"}</button>
       </div>
       <div className="pcard-body">
@@ -1193,10 +1205,11 @@ function ProductCard({ product, onOpen, onAddToCart, onToggleWishlist, isWishlis
 function ProductRow({ title, eyebrow, products, openProduct, addToCart, wishlist, toggleWishlist }) {
   const ref = useRef(null);
   const scroll = dir => { if (ref.current) ref.current.scrollBy({ left: dir * 280, behavior: "smooth" }); };
+  const isBestSelling = /best selling/i.test(title);
   return (
-    <section className="sec">
-      <div className="row-hdr"><div><div className="eyebrow">{eyebrow}</div><h2 className="sec-h2">{title}</h2></div><div className="row-controls"><button className="row-arr" onClick={() => scroll(-1)}>‹</button><button className="row-arr" onClick={() => scroll(1)}>›</button><button className="view-all">View All →</button></div></div>
-      <div className="hscroll" ref={ref}><div className="hscroll-inner">{products.map(p => (<div key={p.id} className="hscroll-item"><ProductCard product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} /></div>))}</div></div>
+    <section className={`sec product-row-sec ${isBestSelling ? "best-selling-row" : ""}`}>
+      <div className="row-hdr"><div><div className="eyebrow">{eyebrow}</div><h2 className="sec-h2">{title}</h2>{isBestSelling && <div className="best-scroll-hint">Swipe right for more hot deals <span>→</span></div>}</div><div className="row-controls"><button className="row-arr" onClick={() => scroll(-1)}>‹</button><button className="row-arr row-arr-next" onClick={() => scroll(1)}>›</button><button className="view-all">View All →</button></div></div>
+      <div className={`hscroll ${isBestSelling ? "hscroll-best" : ""}`} ref={ref}><div className="hscroll-inner">{products.map(p => (<div key={p.id} className="hscroll-item"><ProductCard product={p} onOpen={openProduct} onAddToCart={addToCart} onToggleWishlist={toggleWishlist} isWishlisted={wishlist.includes(p.id)} /></div>))}</div></div>
     </section>
   );
 }
@@ -1260,11 +1273,16 @@ function Testimonials() {
 
 // ─── STATS SECTION ────────────────────────────────────────────────────────────
 function StatsSection() {
-  const stats = [{ num: "100+", label: "Premium Designs", ico: "" }, { num: "100%", label: "Hand-Checked", ico: "" }, { num: "24", label: "Hour Processing", ico: "" }];
+  const stats = [
+    { num: "1000+", label: "Happy Customers", sub: "Across Pakistan" },
+    { num: "95%", label: "COD Success Rate", sub: "Pay after receiving" },
+    { num: "24", label: "Hour Dispatch", sub: "Fast order processing" },
+    { num: "7", label: "Day Return Support", sub: "Easy replacement help" },
+  ];
   return (
     <section className="stats-sec">
       <div className="stats-inner">
-        <div className="stats-grid">{stats.map(s => (<div key={s.label} className="stat-card"><strong className="stat-num">{s.num}</strong><span className="stat-label">{s.label}</span></div>))}</div>
+        <div className="stats-grid">{stats.map(s => (<div key={s.label} className="stat-card"><strong className="stat-num"><AnimatedCounter target={s.num} duration={1300} /></strong><span className="stat-label">{s.label}</span><small className="stat-sub">{s.sub}</small></div>))}</div>
       </div>
     </section>
   );
@@ -1294,7 +1312,7 @@ function Newsletter() {
       <div className="nl-inner">
         <div className="nl-ico">🎁</div>
         <h2>Get Exclusive Deals First</h2>
-        <p>Join 10,000+ smart shoppers. Flash sales, new arrivals, and WhatsApp-only deals.</p>
+        <p>Join 1,000+ smart shoppers. Flash sales, new arrivals, and WhatsApp-only deals.</p>
         <div className="nl-form"><input className="nl-inp" placeholder="Enter your phone number or email" /><button className="nl-btn" onClick={() => alert("Thank you for subscribing!")}>Subscribe & Save</button></div>
         <div className="nl-trust">✓ No spam  ·  ✓ Unsubscribe anytime  ·  ✓ Exclusive deals</div>
       </div>
@@ -1322,7 +1340,7 @@ function SiteFooter({ setPage }) {
 }
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage }) {
+function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage, onCategorySelect }) {
   const featured = products.filter(p => p.featured);
   const bestSellers = [...products].sort((a, b) => Number(b.soldCount || b.sold_count || 0) - Number(a.soldCount || a.sold_count || 0));
   const topProducts = bestSellers.length ? bestSellers : products;
@@ -1333,9 +1351,8 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
   }, [products, featured, topProducts]);
   const [activeCategory, setActiveCategory] = useState("All");
   const homepageCategories = useMemo(() => {
-    const dynamicCats = [...new Set(products.map(p => p.category).filter(Boolean))].slice(0, 6);
-    return ["All", ...(dynamicCats.length ? dynamicCats : STOREFRONT_CATEGORIES.slice(0, 5).map(c => c.name))];
-  }, [products]);
+    return ["All", ...STOREFRONT_CATEGORIES.map(category => category.name)];
+  }, []);
   const visibleProducts = useMemo(() => {
     const base = topProducts;
     if (activeCategory === "All") return base;
@@ -1344,8 +1361,9 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
   return (
     <main className="storefront-light">
       <HeroBanner openProduct={openProduct} products={heroProducts.length ? heroProducts : topProducts} setPage={setPage} />
-      <CategoryGrid products={topProducts} setPage={setPage} />
+      <CategoryGrid products={topProducts} onCategorySelect={onCategorySelect} />
       <TrendingCategories categories={homepageCategories} activeCategory={activeCategory} onChange={setActiveCategory} />
+      <SaleRibbon />
       <section className="sec sf-best-section">
         <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Only the useful stuff, picked for real daily routines.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
         <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
@@ -1361,10 +1379,16 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
 }
 
 // ─── SHOP PAGE ────────────────────────────────────────────────────────────────
-function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, addToCart }) {
+function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, addToCart, initialCategory = "All" }) {
   const [sortBy, setSortBy] = useState("featured");
-  const [cat, setCat] = useState("All");
-  const cats = useMemo(() => ["All", ...new Set(products.map(p => p.category).filter(Boolean))], [products]);
+  const [cat, setCat] = useState(initialCategory || "All");
+  const cats = useMemo(() => {
+    const productCats = [...new Set(products.map(p => p.category).filter(Boolean))];
+    return ["All", ...new Set([...STOREFRONT_CATEGORIES.map(category => category.name), ...productCats, initialCategory].filter(Boolean))];
+  }, [products, initialCategory]);
+  useEffect(() => {
+    setCat(initialCategory || "All");
+  }, [initialCategory]);
   const filtered = useMemo(() => {
     let list = [...products];
     if (search.trim()) list = list.filter(p => [p.name, p.category, p.shortDescription].join(" ").toLowerCase().includes(search.toLowerCase()));
@@ -1528,7 +1552,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
             <BundleSelector product={product} selectedBundle={selectedBundle} onSelect={setSelectedBundle} />
             <div className="pdp-cta-row">
               <Button variant="primary" size="lg" className="pdp-add-btn" onClick={() => addToCart(product, selectedBundle?.qty || 1, variant, effectiveUnitPrice)}>Add to Cart</Button>
-              <Button variant="outline" size="lg" className="pdp-buy-btn" onClick={() => buyNow(product, selectedBundle?.qty || 1, variant, effectiveUnitPrice)}>Buy with COD</Button>
+              <Button variant="outline" size="lg" className="pdp-buy-btn" onClick={() => buyNow(product, selectedBundle?.qty || 1, variant, effectiveUnitPrice)}>Order with COD</Button>
             </div>
             <div className="pdp-safe-checkout"><span aria-hidden="true">🔒</span> Guaranteed Safe Checkout</div>
             <a className="pdp-wa-btn pdp-wa-tertiary" href={`https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(wa)}`} target="_blank" rel="noreferrer">Order on WhatsApp</a>
@@ -1696,7 +1720,7 @@ function ConfirmationPage({ order, setPage }) {
 
 // ─── ABOUT PAGE ───────────────────────────────────────────────────────────────
 function AboutPage() {
-  const cards = [{ ico: "🎯", title: "Our Mission", text: "To bring premium quality gadgets and lifestyle products to Pakistani consumers at fair prices with a seamless shopping experience." }, { ico: "🏆", title: "Why Choose Us", text: "100% authentic products, cash on delivery, fast nationwide shipping, and dedicated WhatsApp customer support 7 days a week." }, { ico: "📦", title: "Fast Delivery", text: "We dispatch within 24 hours and deliver across Pakistan in 3–5 business days." }, { ico: "💚", title: "Customer First", text: "Over 10,000 satisfied customers and counting. We prioritize your satisfaction with easy returns." }];
+  const cards = [{ ico: "🎯", title: "Our Mission", text: "To bring premium quality gadgets and lifestyle products to Pakistani consumers at fair prices with a seamless shopping experience." }, { ico: "🏆", title: "Why Choose Us", text: "100% authentic products, cash on delivery, fast nationwide shipping, and dedicated WhatsApp customer support 7 days a week." }, { ico: "📦", title: "Fast Delivery", text: "We dispatch within 24 hours and deliver across Pakistan in 3–5 business days." }, { ico: "💚", title: "Customer First", text: "Over 1,000 satisfied customers and counting. We prioritize your satisfaction with easy returns." }];
   return (<main><section className="sec"><div className="sec-head sec-centered"><div className="eyebrow">Our Story</div><h1 className="sec-h2">About ISmallOne PK</h1><p className="sec-sub sec-sub-center">Building Pakistan's most trusted gadget store</p></div><div className="about-grid">{cards.map(c => (<div key={c.title} className="about-card"><span className="about-ico">{c.ico}</span><h3>{c.title}</h3><p>{c.text}</p></div>))}</div></section></main>);
 }
 
@@ -2549,8 +2573,8 @@ const CSS = `
 
   .splash-overlay{position:fixed;inset:0;background:linear-gradient(135deg, #ffffff 0%, #fff1f2 100%);display:flex;align-items:center;justify-content:center;z-index:999999;}
   .splash-overlay .pt-center{opacity:1;transform:scale(1);}
-  .splash-ring-anim{animation:ptRingPulse 1.2s ease infinite !important;}
-  .splash-line-anim{animation:splashLineLoop 2s ease-in-out infinite !important;}
+  .splash-ring-anim{animation:ptRingPulse .8s ease infinite !important;}
+  .splash-line-anim{animation:splashLineLoop 1s ease-in-out infinite !important;}
   @keyframes splashLineLoop{0%{width:0%;margin-left:0}50%{width:100%;margin-left:0}100%{width:0%;margin-left:100%}}
 
   /* ── TOAST ── */
@@ -3554,7 +3578,9 @@ const CSS = `
   .sf-cat-marquee{overflow:hidden;max-width:1440px;margin:0 auto;padding:8px 0 14px;mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);}
   .sf-cat-grid{display:flex;gap:26px;width:max-content;padding:4px 0 12px;scrollbar-width:none;}
   .sf-cat-track{animation:catDriftRight 42s linear infinite;will-change:transform;}
+  .sf-cat-track-live{animation:catDriftRight 42s linear infinite;will-change:transform;}
   .sf-cat-marquee:hover .sf-cat-track{animation-play-state:paused;}
+  .sf-cat-marquee:hover .sf-cat-track-live{animation-play-state:paused;}
   .sf-cat-grid::-webkit-scrollbar{display:none;}
   @keyframes catDriftRight{from{transform:translateX(-50%)}to{transform:translateX(0)}}
   .sf-cat-card{min-width:190px;background:transparent;border:0;box-shadow:none;padding:0;gap:12px;}
@@ -3589,13 +3615,14 @@ const CSS = `
 
   .stats-sec{background:var(--cream);padding:0 40px 42px;}
   .stats-inner{max-width:1440px;margin:0 auto;}
-  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);background:var(--cream);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);background:var(--cream);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
   .stat-card{background:transparent;border:0;border-radius:0;box-shadow:none;padding:34px 20px;border-right:1px solid var(--border);}
   .stat-card:last-child{border-right:0;}
   .stat-card:hover{transform:none;box-shadow:none;}
   .stat-ico{display:none;}
   .stat-num{display:block;color:var(--forest);font-size:40px;font-family:var(--font-head);}
   .stat-label{display:block;color:var(--muted);font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;}
+  .stat-sub{display:block;margin-top:7px;color:#81776b;font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;}
 
   .sf-review-section{background:var(--forest);max-width:none;}
   .sf-review-section .sec-h2,.sf-review-section .eyebrow{color:#fff;}
@@ -4178,25 +4205,24 @@ const CSS = `
   }
   .storefront-light::before,
   .product-page-shell::before{
-    opacity:.72;
+    opacity:.68;
     background:
-      linear-gradient(105deg,rgba(255,92,122,.2),rgba(255,255,255,.5) 46%,rgba(255,92,122,.1) 58%,rgba(255,92,122,.18)) 6% 10%/142px 36px no-repeat,
-      linear-gradient(72deg,rgba(60,214,190,.2),rgba(255,255,255,.48) 48%,rgba(60,214,190,.12) 62%,rgba(60,214,190,.2)) 92% 16%/132px 34px no-repeat,
-      linear-gradient(118deg,rgba(255,194,71,.22),rgba(255,255,255,.5) 44%,rgba(255,194,71,.12) 58%,rgba(255,194,71,.18)) 18% 58%/118px 32px no-repeat,
-      linear-gradient(64deg,rgba(132,104,255,.18),rgba(255,255,255,.48) 48%,rgba(132,104,255,.1) 60%,rgba(132,104,255,.16)) 86% 70%/152px 38px no-repeat;
-    transform:rotate(-5deg);
-    animation:wrapperDrift 18s ease-in-out infinite alternate;
+      radial-gradient(circle at 8% 12%,rgba(27,67,50,.16) 0 34px,rgba(255,255,255,.5) 35px 43px,transparent 44px),
+      radial-gradient(circle at 92% 18%,rgba(201,168,76,.18) 0 42px,rgba(255,255,255,.55) 43px 55px,transparent 56px),
+      linear-gradient(135deg,rgba(27,67,50,.18),rgba(255,255,255,.54) 45%,rgba(201,168,76,.22)) 14% 48%/96px 96px no-repeat,
+      linear-gradient(135deg,rgba(232,25,44,.12),rgba(255,255,255,.58) 46%,rgba(27,67,50,.14)) 84% 62%/118px 118px no-repeat,
+      radial-gradient(circle at 18% 82%,rgba(60,214,190,.13) 0 30px,rgba(255,255,255,.46) 31px 40px,transparent 41px);
+    animation:premiumObjectDrift 20s ease-in-out infinite alternate;
   }
   .storefront-light::after,
   .product-page-shell::after{
-    opacity:.54;
+    opacity:.5;
     background:
-      linear-gradient(118deg,rgba(232,25,44,.13),rgba(255,255,255,.36) 46%,rgba(232,25,44,.08) 62%,rgba(232,25,44,.14)) 78% 6%/92px 24px no-repeat,
-      linear-gradient(70deg,rgba(54,211,153,.14),rgba(255,255,255,.42) 45%,rgba(54,211,153,.08) 60%,rgba(54,211,153,.14)) 10% 34%/104px 26px no-repeat,
-      linear-gradient(104deg,rgba(251,146,60,.14),rgba(255,255,255,.42) 45%,rgba(251,146,60,.08) 60%,rgba(251,146,60,.14)) 72% 50%/118px 28px no-repeat,
-      linear-gradient(65deg,rgba(56,189,248,.13),rgba(255,255,255,.42) 46%,rgba(56,189,248,.08) 61%,rgba(56,189,248,.13)) 24% 82%/136px 30px no-repeat;
-    transform:rotate(8deg);
-    animation:wrapperDriftAlt 22s ease-in-out infinite alternate;
+      linear-gradient(135deg,rgba(255,255,255,.64),rgba(27,67,50,.16)) 72% 9%/82px 82px no-repeat,
+      linear-gradient(135deg,rgba(255,255,255,.62),rgba(201,168,76,.2)) 5% 38%/70px 70px no-repeat,
+      radial-gradient(circle at 88% 84%,rgba(232,25,44,.1) 0 28px,rgba(255,255,255,.48) 29px 38px,transparent 39px),
+      radial-gradient(circle at 38% 72%,rgba(201,168,76,.13) 0 26px,rgba(255,255,255,.45) 27px 34px,transparent 35px);
+    animation:premiumObjectDriftAlt 24s ease-in-out infinite alternate;
   }
   .storefront-light > *,
   .product-page-shell > *{
@@ -4225,24 +4251,24 @@ const CSS = `
     border-radius:28px;
     opacity:.42;
     background:
-      linear-gradient(112deg,rgba(255,92,122,.18),rgba(255,255,255,.42) 42%,rgba(255,92,122,.09) 60%) 2% 18%/96px 22px no-repeat,
-      linear-gradient(68deg,rgba(60,214,190,.18),rgba(255,255,255,.42) 45%,rgba(60,214,190,.08) 64%) 96% 68%/108px 24px no-repeat,
-      linear-gradient(100deg,rgba(255,194,71,.18),rgba(255,255,255,.4) 46%,rgba(255,194,71,.08) 64%) 72% 14%/88px 20px no-repeat;
+      radial-gradient(circle at 4% 18%,rgba(27,67,50,.15) 0 30px,rgba(255,255,255,.54) 31px 40px,transparent 41px),
+      linear-gradient(135deg,rgba(255,255,255,.58),rgba(201,168,76,.18)) 94% 64%/96px 96px no-repeat,
+      radial-gradient(circle at 72% 14%,rgba(232,25,44,.1) 0 24px,rgba(255,255,255,.48) 25px 32px,transparent 33px);
   }
   .sf-hero{
     background:
-      linear-gradient(112deg,rgba(255,92,122,.14),rgba(255,255,255,.34) 44%,rgba(255,92,122,.07) 62%) left 4% top 12%/108px 24px no-repeat,
-      linear-gradient(68deg,rgba(60,214,190,.14),rgba(255,255,255,.34) 46%,rgba(60,214,190,.07) 64%) right 5% top 26%/120px 26px no-repeat,
-      linear-gradient(100deg,rgba(255,194,71,.14),rgba(255,255,255,.32) 46%,rgba(255,194,71,.07) 64%) left 18% bottom 18%/92px 22px no-repeat,
+      radial-gradient(circle at 6% 16%,rgba(27,67,50,.13) 0 34px,rgba(255,255,255,.5) 35px 44px,transparent 45px),
+      linear-gradient(135deg,rgba(255,255,255,.6),rgba(201,168,76,.18)) right 7% top 18%/96px 96px no-repeat,
+      radial-gradient(circle at 18% 78%,rgba(232,25,44,.09) 0 26px,rgba(255,255,255,.42) 27px 35px,transparent 36px),
       linear-gradient(135deg,#fff 0%,#f7f6f2 58%,#eeeeea 100%);
   }
-  @keyframes wrapperDrift{
-    from{transform:rotate(-5deg) translate3d(-8px,0,0);}
-    to{transform:rotate(-5deg) translate3d(8px,10px,0);}
+  @keyframes premiumObjectDrift{
+    from{transform:translate3d(-6px,0,0) rotate(-1deg);}
+    to{transform:translate3d(8px,10px,0) rotate(1deg);}
   }
-  @keyframes wrapperDriftAlt{
-    from{transform:rotate(8deg) translate3d(7px,-4px,0);}
-    to{transform:rotate(8deg) translate3d(-9px,8px,0);}
+  @keyframes premiumObjectDriftAlt{
+    from{transform:translate3d(7px,-4px,0) rotate(1deg);}
+    to{transform:translate3d(-9px,8px,0) rotate(-1deg);}
   }
   .sf-hero::after{opacity:.92;transform:none;}
   .sf-hero-showcase{
@@ -4276,6 +4302,193 @@ const CSS = `
   .sf-cat-card:hover .sf-cat-icon{
     transform:translateY(-4px) scale(1.025);
     box-shadow:0 18px 38px rgba(126,86,38,.16);
+  }
+  .sf-cat-card{
+    min-width:194px !important;
+    gap:12px !important;
+  }
+  .sf-cat-icon{
+    width:168px !important;
+    height:168px !important;
+    border-radius:50% !important;
+    background:radial-gradient(circle at 35% 25%,#2f6b54 0%,var(--forest) 58%,#0f2f23 100%) !important;
+    border:6px solid rgba(255,255,255,.88) !important;
+    box-shadow:0 18px 42px rgba(27,67,50,.18),inset 0 1px 0 rgba(255,255,255,.28) !important;
+    display:grid !important;
+    place-items:center !important;
+    overflow:hidden !important;
+  }
+  .sf-cat-img{
+    width:100% !important;
+    height:100% !important;
+    border-radius:50% !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    padding:10px !important;
+    background:transparent !important;
+    mix-blend-mode:normal !important;
+    opacity:1 !important;
+    filter:saturate(1.08) contrast(1.06) drop-shadow(0 10px 12px rgba(0,0,0,.18));
+  }
+  .sf-cat-fallback-card .sf-product-placeholder{
+    color:#fff !important;
+    background:transparent !important;
+    mix-blend-mode:normal;
+    font-size:34px !important;
+  }
+  .sf-cat-card .cat-nm{
+    color:var(--forest) !important;
+    font-weight:850 !important;
+  }
+
+  .sale-ribbon{
+    width:100%;
+    margin:8px 0 -18px;
+    height:46px;
+    overflow:hidden;
+    border-radius:0;
+    border:1px solid rgba(201,168,76,.34);
+    background:linear-gradient(135deg,var(--forest),#245b45 48%,#c9a84c 100%);
+    box-shadow:0 16px 34px rgba(27,67,50,.14);
+    position:relative;
+    z-index:3;
+  }
+  .sale-ribbon::before{
+    content:"";
+    position:absolute;
+    inset:1px;
+    border-radius:0;
+    border:1px solid rgba(255,255,255,.22);
+    pointer-events:none;
+  }
+  .sale-ribbon-track{
+    display:inline-flex;
+    align-items:center;
+    gap:22px;
+    height:100%;
+    white-space:nowrap;
+    color:#fff;
+    font-size:12px;
+    font-weight:900;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    width:max-content;
+    animation:saleRibbonLoop 42s linear infinite;
+    will-change:transform;
+    padding:0 42px;
+  }
+  @keyframes saleRibbonLoop{
+    from{transform:translateX(0);}
+    to{transform:translateX(-33.333%);}
+  }
+  .sale-ribbon-track span{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .sale-ribbon-track span::before{
+    content:"SALE";
+    display:inline-flex;
+    align-items:center;
+    height:22px;
+    padding:0 8px;
+    border-radius:999px;
+    background:#fff;
+    color:var(--forest);
+    font-size:9px;
+    letter-spacing:.08em;
+  }
+
+  .pcard-cat-on-img{
+    min-width:58px;
+    justify-content:center;
+    background:linear-gradient(135deg,#e8192c 0%,#b71222 48%,#c9a84c 100%) !important;
+    color:#fff !important;
+    border:1px solid rgba(255,255,255,.35) !important;
+    box-shadow:0 10px 20px rgba(232,25,44,.2) !important;
+    font-weight:900 !important;
+    letter-spacing:.04em !important;
+    text-transform:uppercase !important;
+  }
+
+  .best-selling-row{
+    position:relative;
+    overflow:hidden;
+  }
+  .best-scroll-hint{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    margin-top:8px;
+    color:var(--forest);
+    font-size:12px;
+    font-weight:850;
+    background:#fff;
+    border:1px solid rgba(201,168,76,.38);
+    border-radius:999px;
+    padding:7px 12px;
+    box-shadow:0 10px 22px rgba(27,67,50,.08);
+  }
+  .best-scroll-hint span,
+  .best-selling-row .row-arr-next{
+    animation:scrollCue 1.4s ease-in-out infinite;
+  }
+  .hscroll-best{
+    position:relative;
+    overflow-x:auto;
+    scroll-snap-type:x proximity;
+  }
+  .hscroll-best::after{
+    content:"";
+    position:absolute;
+    right:0;
+    top:0;
+    bottom:4px;
+    width:92px;
+    pointer-events:none;
+    background:linear-gradient(90deg,rgba(250,246,239,0),rgba(250,246,239,.94));
+    border-radius:0 24px 24px 0;
+  }
+  .hscroll-best .hscroll-item{
+    scroll-snap-align:start;
+    will-change:transform;
+    animation:bestCardNudge 3.8s ease-in-out infinite;
+  }
+  .hscroll-best .hscroll-item:nth-child(2){animation-delay:.12s;}
+  .hscroll-best .hscroll-item:nth-child(3){animation-delay:.24s;}
+  .hscroll-best .hscroll-item:nth-child(4){animation-delay:.36s;}
+  .hscroll-best .hscroll-item:nth-child(5){animation-delay:.48s;}
+  .hscroll-best .hscroll-item:nth-child(n+6){animation-delay:.6s;}
+  @keyframes bestCardNudge{
+    0%,58%,100%{transform:translateX(0);}
+    70%{transform:translateX(-12px);}
+    82%{transform:translateX(0);}
+  }
+  @keyframes scrollCue{
+    0%,100%{transform:translateX(0);}
+    50%{transform:translateX(5px);}
+  }
+  @media(max-width:768px){
+    .sf-cat-card{min-width:148px !important;}
+    .sf-cat-icon{width:132px !important;height:132px !important;border-width:5px !important;}
+    .sf-cat-img{padding:8px !important;}
+    .sale-ribbon{
+      width:100%;
+      margin:0 0 -12px;
+      height:40px;
+    }
+    .sale-ribbon-track{
+      font-size:10px;
+      gap:16px;
+      padding:0 30px;
+    }
+    .best-scroll-hint{
+      font-size:11px;
+      padding:6px 10px;
+    }
+    .hscroll-best .hscroll-item{
+      animation-duration:4.2s;
+    }
   }
 
   .pcard{
@@ -4355,6 +4568,31 @@ const CSS = `
   }
   .pdp-main-img,.pdp-video{position:relative;z-index:1;transition:transform .26s cubic-bezier(.22,.9,.25,1);}
   .pdp-main-box:hover .pdp-main-img,.pdp-main-box:hover .pdp-video{transform:translateY(-4px) scale(1.008);}
+  .pdp-buy-btn{
+    background:linear-gradient(135deg,#e8192c 0%,#b71222 58%,#ff3b4f 100%) !important;
+    color:#fff !important;
+    border-color:#e8192c !important;
+    box-shadow:0 16px 32px rgba(232,25,44,.28) !important;
+    min-height:58px !important;
+    font-size:16px !important;
+    font-weight:900 !important;
+    letter-spacing:.02em !important;
+    animation:codButtonShake 1.75s ease-in-out infinite;
+  }
+  .pdp-buy-btn:hover{
+    background:linear-gradient(135deg,#c91424 0%,#98101c 100%) !important;
+    color:#fff !important;
+    box-shadow:0 20px 42px rgba(232,25,44,.36) !important;
+  }
+  @keyframes codButtonShake{
+    0%,58%,100%{transform:translate3d(0,0,0) scale(1);}
+    64%{transform:translate3d(-8px,-3px,0) scale(1.035);}
+    70%{transform:translate3d(8px,2px,0) scale(1.035);}
+    76%{transform:translate3d(-6px,-4px,0) scale(1.025);}
+    82%{transform:translate3d(6px,1px,0) scale(1.025);}
+    88%{transform:translate3d(0,-5px,0) scale(1.04);}
+    94%{transform:translate3d(0,0,0) scale(1);}
+  }
   .pdp-thumb{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;}
   .pdp-thumb:hover,.pdp-thumb.active{transform:translateY(-3px);box-shadow:0 12px 26px rgba(27,67,50,.14);}
   .pdp-trust-badges span,.pdp-verified,.pdp-save{
@@ -4389,7 +4627,7 @@ export default function App() {
   const [minLoading, setMinLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setMinLoading(false), 1000);
+    const timer = setTimeout(() => setMinLoading(false), 750);
     return () => clearTimeout(timer);
   }, []);
   const [page, setPage] = useState(() => localStorage.getItem("iso_last_page") || "home");
@@ -4398,6 +4636,7 @@ export default function App() {
     localStorage.setItem("iso_last_page", page);
   }, [page]);
   const [search, setSearch] = useState("");
+  const [shopCategory, setShopCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [currentProduct, setCurrentProduct] = useState(null);
@@ -4410,15 +4649,13 @@ export default function App() {
   useEffect(() => {
     async function loadAll() {
       try {
-        // Recover Session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setCurrentUser({
-            ...session.user,
-            role: session.user.user_metadata?.role || "user",
-            name: session.user.user_metadata?.name || (session.user.user_metadata?.role === "admin" ? "Admin" : "Customer")
-          });
+        // Keep storefront visitors logged out by default; admins must log in manually per session.
+        try {
+          await supabase.auth.signOut();
+        } catch (authErr) {
+          console.warn("Could not clear saved auth session:", authErr);
         }
+        setCurrentUser(null);
 
         const [prods, ords, sett, coups, faqItems] = await Promise.all([
           getProducts(),
@@ -4456,11 +4693,18 @@ export default function App() {
     loadAll();
   }, []);
 
-  const navigate = useCallback((p) => {
+  const navigate = useCallback((p, options = {}) => {
+    if (p === "shop" && !options.keepCategory) setShopCategory("All");
     setTransitionTrigger(t => t + 1);
     setTimeout(() => setPage(p), 200);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  const openCategory = useCallback((category) => {
+    setShopCategory(category || "All");
+    setSearch("");
+    navigate("shop", { keepCategory: true });
+  }, [navigate]);
 
   const showToast = useCallback((msg) => {
     setToast({ message: msg, visible: true });
@@ -4631,8 +4875,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
-      case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
+      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} />;
+      case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} initialCategory={shopCategory} />;
       case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
       case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
       case "cart": return <CartPage cart={cart} setPage={navigate} updateCartQty={updateCartQty} removeFromCart={removeFromCart} subtotal={subtotal} shipping={shipping} total={total} />;
@@ -4647,7 +4891,7 @@ export default function App() {
       case "faq": return <FAQPage faqs={faqs} />;
       case "track-order": return <TrackOrderPage settings={settings} />;
       case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
-      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} />;
+      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} />;
     }
   };
   const isReady = !loading && !minLoading;
@@ -4656,9 +4900,9 @@ export default function App() {
       <style>{CSS}</style>
       <SplashLoader ready={isReady} />
 
-      <div style={{ opacity: isReady ? 1 : 0, transition: "opacity 0.5s ease" }}>
+      <div style={{ opacity: isReady ? 1 : 0, transition: "opacity 0.25s ease" }}>
         <PageTransition trigger={transitionTrigger} />
-        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
+        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onCategorySelect={openCategory} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
           await supabase.auth.signOut();
           setCurrentUser(null);
         }} />
