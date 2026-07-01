@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS = {
   heroTitle: "Pakistan's #1 Trending Gadgets & Lifestyle Store",
   heroSubtitle:
     "Premium products, fast delivery across Pakistan, and cash on delivery available. Trusted by 1,000+ happy customers.",
-  announcement: "FREE DELIVERY ON ORDERS ABOVE Rs 3,000  •  CASH ON DELIVERY AVAILABLE  •  LIMITED TIME DEALS",
+  announcement: "Pakistan bhar delivery deals  •  Cash on Delivery available  •  Limited time offers",
   supportEmail: "um2739638@gmail.com",
   whatsappNumber: "923008631809",
   shippingFee: 0,
@@ -79,6 +79,24 @@ function fallbackSalePercent(product = {}) {
   const seed = String(product.id ?? product.name ?? product.category ?? "sale");
   const score = Array.from(seed).reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 1), 0);
   return score % 2 === 0 ? 50 : 30;
+}
+function getSoldCount(product = {}) {
+  return Number(product.soldCount ?? product.sold_count ?? 0);
+}
+function getBestSellerLimit(total = 0) {
+  if (total <= 0) return 0;
+  return Math.min(total, Math.max(1, Math.ceil(total * 0.43)));
+}
+function getPaginationItems(currentPage, totalPages) {
+  if (totalPages <= 5) return Array.from({ length: totalPages }, (_, index) => index + 1);
+  const items = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+  if (start > 2) items.push("ellipsis-left");
+  for (let page = start; page <= end; page += 1) items.push(page);
+  if (end < totalPages - 1) items.push("ellipsis-right");
+  items.push(totalPages);
+  return items;
 }
 function toNullableNumber(value) {
   if (value === "" || value === null || value === undefined) return null;
@@ -501,16 +519,13 @@ function Product3DViewer({ images, productName }) {
 }
 
 // ─── AUTH MODAL ───────────────────────────────────────────────────────────────
-function AuthModal({ onClose, onLogin, isAdminLogin }) {
-  const [mode, setMode] = useState(isAdminLogin ? "admin" : "login");
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
+function AuthModal({ onClose, onLogin }) {
   const [adminForm, setAdminForm] = useState({
     email: "",
     password: ""
   });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPass, setShowPass] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
 
   async function handleAdminLogin(e) {
@@ -554,37 +569,6 @@ function AuthModal({ onClose, onLogin, isAdminLogin }) {
     onClose();
   }
 
-  async function handleLogin(e) {
-    e.preventDefault(); setErr("");
-    if (!form.email || !form.password) { setErr("Please fill all fields."); return; }
-    setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    });
-    setLoading(false);
-    if (error) { setErr("Invalid email or password."); return; }
-    onLogin({ id: data.user.id, name: data.user.user_metadata?.name || "Customer", email: data.user.email, role: "user" });
-    onClose();
-  }
-
-  async function handleRegister(e) {
-    e.preventDefault(); setErr("");
-    if (!form.name || !form.email || !form.phone || !form.password || !form.confirm) { setErr("Please fill all fields."); return; }
-    if (form.password !== form.confirm) { setErr("Passwords do not match."); return; }
-    if (form.password.length < 6) { setErr("Password must be at least 6 characters."); return; }
-    setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { name: form.name, phone: form.phone } }
-    });
-    setLoading(false);
-    if (error) { setErr(error.message); return; }
-    onLogin({ id: data.user.id, name: form.name, email: form.email, role: "user" });
-    onClose();
-  }
-
   return (
     <div className="auth-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="auth-modal">
@@ -603,51 +587,17 @@ function AuthModal({ onClose, onLogin, isAdminLogin }) {
         </div>
         <div className="auth-right">
           <button className="auth-close" onClick={onClose}>✕</button>
-          {mode === "admin" ? (
-            <>
-              <div className="auth-header">
-                <div className="auth-admin-badge">🔐 Admin Portal</div>
-                <h3 className="auth-title">Admin Login</h3>
-                <p className="auth-desc">Restricted access — authorized personnel only</p>
-              </div>
-              <form onSubmit={handleAdminLogin} className="auth-form">
-                <div className="auth-field-wrap"><label>Email</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="Enter admin email" value={adminForm.email} onChange={e => setAdminForm(p => ({ ...p, email: e.target.value }))} /></div></div>
-                <div className="auth-field-wrap"><label>Password</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔑</span><input className="auth-inp" type={showAdminPass ? "text" : "password"} placeholder="Enter admin password" value={adminForm.password} onChange={e => setAdminForm(p => ({ ...p, password: e.target.value }))} /><button type="button" className="auth-eye" onClick={() => setShowAdminPass(v => !v)}>{showAdminPass ? "🙈" : "👁️"}</button></div></div>
-                {err && <div className="auth-err"><span>⚠️</span>{err}</div>}
-                <button type="submit" className={`auth-submit ${loading ? "loading" : ""}`} disabled={loading}>{loading ? <span className="auth-spinner" /> : "Access Admin Panel →"}</button>
-              </form>
-              {!isAdminLogin && <div className="auth-switch">Not admin? <button onClick={() => { setMode("login"); setErr(""); }}>Customer Login</button></div>}
-            </>
-          ) : mode === "login" ? (
-            <>
-              <div className="auth-header"><h3 className="auth-title">Welcome Back</h3><p className="auth-desc">Sign in to your ISmallOne account</p></div>
-              <form onSubmit={handleLogin} className="auth-form">
-                <div className="auth-field-wrap"><label>Email Address</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div></div>
-                <div className="auth-field-wrap"><label>Password</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔒</span><input className="auth-inp" type={showPass ? "text" : "password"} placeholder="Enter your password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /><button type="button" className="auth-eye" onClick={() => setShowPass(v => !v)}>{showPass ? "🙈" : "👁️"}</button></div></div>
-                {err && <div className="auth-err"><span>⚠️</span>{err}</div>}
-                <button type="submit" className={`auth-submit ${loading ? "loading" : ""}`} disabled={loading}>{loading ? <span className="auth-spinner" /> : "Sign In →"}</button>
-              </form>
-              <div className="auth-divider"><span>or</span></div>
-              <div className="auth-switch">New customer? <button onClick={() => { setMode("register"); setErr(""); }}>Create Account</button></div>
-              <div className="auth-switch" style={{ marginTop: "8px" }}>Admin? <button onClick={() => { setMode("admin"); setErr(""); }}>Admin Login</button></div>
-            </>
-          ) : (
-            <>
-              <div className="auth-header"><h3 className="auth-title">Create Account</h3><p className="auth-desc">Join 1,000+ happy customers</p></div>
-              <form onSubmit={handleRegister} className="auth-form">
-                <div className="auth-field-wrap"><label>Full Name</label><div className="auth-inp-wrap"><span className="auth-inp-ico">👤</span><input className="auth-inp" placeholder="Your full name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div></div>
-                <div className="auth-field-wrap"><label>Email Address</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div></div>
-                <div className="auth-field-wrap"><label>Phone Number</label><div className="auth-inp-wrap"><span className="auth-inp-ico">📱</span><input className="auth-inp" placeholder="+92 300 0000000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div></div>
-                <div className="auth-2col">
-                  <div className="auth-field-wrap"><label>Password</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔒</span><input className="auth-inp" type={showPass ? "text" : "password"} placeholder="Min 6 chars" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /><button type="button" className="auth-eye" onClick={() => setShowPass(v => !v)}>{showPass ? "🙈" : "👁️"}</button></div></div>
-                  <div className="auth-field-wrap"><label>Confirm</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔐</span><input className="auth-inp" type="password" placeholder="Repeat password" value={form.confirm} onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))} /></div></div>
-                </div>
-                {err && <div className="auth-err"><span>⚠️</span>{err}</div>}
-                <button type="submit" className={`auth-submit ${loading ? "loading" : ""}`} disabled={loading}>{loading ? <span className="auth-spinner" /> : "Create My Account →"}</button>
-              </form>
-              <div className="auth-switch">Already have an account? <button onClick={() => { setMode("login"); setErr(""); }}>Sign In</button></div>
-            </>
-          )}
+          <div className="auth-header">
+            <div className="auth-admin-badge">🔐 Admin Portal</div>
+            <h3 className="auth-title">Admin Login</h3>
+            <p className="auth-desc">Restricted access — authorized personnel only</p>
+          </div>
+          <form onSubmit={handleAdminLogin} className="auth-form">
+            <div className="auth-field-wrap"><label>Email</label><div className="auth-inp-wrap"><span className="auth-inp-ico">✉️</span><input className="auth-inp" type="email" placeholder="Enter admin email" value={adminForm.email} onChange={e => setAdminForm(p => ({ ...p, email: e.target.value }))} /></div></div>
+            <div className="auth-field-wrap"><label>Password</label><div className="auth-inp-wrap"><span className="auth-inp-ico">🔑</span><input className="auth-inp" type={showAdminPass ? "text" : "password"} placeholder="Enter admin password" value={adminForm.password} onChange={e => setAdminForm(p => ({ ...p, password: e.target.value }))} /><button type="button" className="auth-eye" onClick={() => setShowAdminPass(v => !v)}>{showAdminPass ? "🙈" : "👁️"}</button></div></div>
+            {err && <div className="auth-err"><span>⚠️</span>{err}</div>}
+            <button type="submit" className={`auth-submit ${loading ? "loading" : ""}`} disabled={loading}>{loading ? <span className="auth-spinner" /> : "Access Admin Panel →"}</button>
+          </form>
         </div>
       </div>
     </div>
@@ -765,7 +715,7 @@ function BuyNowButton({ onClick, label = "Order Now" }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ settings, page, setPage, search, setSearch, cartCount, wishlistCount, currentUser, onOpenAuth, onLogout, onCategorySelect }) {
+function Header({ settings, page, setPage, search, setSearch, cartCount, wishlistCount, currentUser, onLogout, onCategorySelect }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -800,7 +750,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
   return (
     <>
       <header className={`hdr ${scrolled ? "hdr-scrolled" : ""}`}>
-        <div className="hdr-announce"><div className="hdr-announce-inner">SHOP THE LATEST COLLECTION • ORDER ANY 4 PRODUCTS & GET FREE SHIPPING • 7-DAY EASY RETURN POLICY</div></div>
+        <div className="hdr-announce"><div className="hdr-announce-inner">Pakistan bhar delivery deals • Cash on Delivery available • 7 din easy return support</div></div>
         <div className="hdr-body">
           <button className="hdr-hamburger" onClick={() => setMobileMenuOpen(v => !v)} aria-label="Menu">
             <span className={`ham-line ${mobileMenuOpen ? "ham-open" : ""}`}></span>
@@ -858,12 +808,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
                   </div>
                 )}
               </div>
-            ) : (
-              <button className="hdr-login-btn" onClick={onOpenAuth}>
-                <span className="hdr-login-ico">👤</span>
-                <span className="desktop-only">Sign In</span>
-              </button>
-            )}
+            ) : null}
           </div>
         </div>
         {mobileSearchOpen && (
@@ -918,19 +863,17 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
                 </div>
               </>
             )}
-            <div className="mobile-menu-divider" />
-            <div className="mobile-menu-section-title">Account</div>
-            <nav className="mobile-nav">
-              {currentUser ? (
-                <>
+            {currentUser && (
+              <>
+                <div className="mobile-menu-divider" />
+                <div className="mobile-menu-section-title">Account</div>
+                <nav className="mobile-nav">
                   <button className="mobile-nav-btn" onClick={() => navTo("cart")}><span>🛒</span><span>My Cart ({cartCount})</span><span className="mobile-nav-arrow">›</span></button>
                   <button className="mobile-nav-btn" onClick={() => navTo("wishlist")}><span>♡</span><span>Wishlist ({wishlistCount})</span><span className="mobile-nav-arrow">›</span></button>
                   <button className="mobile-nav-btn" style={{ color: "#dc2626" }} onClick={() => { onLogout(); setMobileMenuOpen(false); }}><span>🚪</span><span>Sign Out</span><span className="mobile-nav-arrow">›</span></button>
-                </>
-              ) : (
-                <button className="mobile-nav-btn" onClick={() => { onOpenAuth(); setMobileMenuOpen(false); }}><span>👤</span><span>Sign In / Register</span><span className="mobile-nav-arrow">›</span></button>
-              )}
-            </nav>
+                </nav>
+              </>
+            )}
             <div className="mobile-menu-divider" />
             <div className="mobile-menu-section-title">Help</div>
             <nav className="mobile-nav">
@@ -982,11 +925,11 @@ function HeroBanner({ openProduct, products, setPage }) {
     return uniqueProductList([...videoPicks, ...priority, ...products]).slice(0, 6);
   }, [products]);
   const heroCopy = [
-    ["Useful Gadgets. Cleaner Everyday.", "Smart finds that make daily life feel instantly easier."],
-    ["Small Upgrades. Big Daily Wins.", "Premium picks for your room, kitchen, desk, and routine."],
-    ["Better Finds. Faster Decisions.", "Hand-picked products with COD, quick support, and fair prices."],
-    ["Home, Tech, Sorted.", "Useful accessories that look good and actually get used."],
-    ["Fresh Deals. Real Utility.", "New everyday favorites rotating from the ISmallOne shelf."],
+    ["Roz ke kaam, ab asaan.", "Smart gadgets jo waqai kaam aate hain."],
+    ["Choti cheez, bara kaam.", "Room, kitchen aur phone setup ke liye useful picks."],
+    ["Dekho, pasand karo, order karo.", "COD, quick support aur fair prices ek jagah."],
+    ["Ghar ho ya desk, scene set.", "Useful accessories jo daily routine mein fit ho jati hain."],
+    ["Naye deals, real kaam.", "ISmallOne shelf se rotating premium picks."],
   ];
   const [activeSlide, setActiveSlide] = useState(0);
   const mainProduct = heroProducts[activeSlide % Math.max(heroProducts.length, 1)];
@@ -1003,14 +946,14 @@ function HeroBanner({ openProduct, products, setPage }) {
   return (
     <section className="sf-hero">
       <div className="sf-hero-copy sf-hero-fade" key={`copy-${activeSlide}`}>
-        <div className="sf-kicker">ISmallOne • New collection</div>
+        <div className="sf-kicker">ISmallOne • Nayi collection</div>
         <h1>{heroTitle}</h1>
         <p>{heroSubtitle}</p>
         <div className="sf-hero-actions">
-          <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>Shop Best Sellers</button>
+          <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>Top Products Dekho</button>
           <button className="sf-btn sf-btn-secondary" onClick={() => setPage("shop")}>View All Products</button>
         </div>
-        <div className="sf-hero-trust"><span>Cash on delivery</span><span className="sf-hero-deal">Order any 4, free shipping</span><span>Hand-checked products</span><span>7-day return support</span></div>
+        <div className="sf-hero-trust"><span>Cash on Delivery</span><span className="sf-hero-deal">4 items par free shipping</span><span>Dispatch se pehle checked</span><span>7 din return support</span></div>
       </div>
       <div className="sf-hero-showcase">
         <div className="sf-hero-label">Premium pick</div>
@@ -1033,7 +976,7 @@ function HeroBanner({ openProduct, products, setPage }) {
             />
           ))}
         </div>
-        <div className="sf-hero-note">COD available nationwide</div>
+        <div className="sf-hero-note">Cash on Delivery nationwide</div>
       </div>
     </section>
   );
@@ -1126,7 +1069,7 @@ function TrendingCategories({ categories, activeCategory, onChange }) {
 }
 
 function SaleRibbon() {
-  const items = ["Sale Live", "Up to 50% Off", "COD Available", "Limited Stock", "Free Delivery Deals"];
+  const items = ["Sale live", "50% tak discount", "Cash on Delivery", "Limited stock", "Free delivery deals"];
   return (
     <div className="sale-ribbon" aria-label="Current sale offers">
       <div className="sale-ribbon-track">
@@ -1295,15 +1238,16 @@ function StoreFAQ() {
 }
 
 // ─── NEWSLETTER ───────────────────────────────────────────────────────────────
-function Newsletter() {
+function Newsletter({ onAdminAccess }) {
   return (
     <section className="nl-sec">
       <div className="nl-inner">
         <div className="nl-ico">🎁</div>
-        <h2>Get Exclusive Deals First</h2>
-        <p>Join 1,000+ smart shoppers. Flash sales, new arrivals, and WhatsApp-only deals.</p>
+        <h2>Exclusive Deals Pehle Paayen</h2>
+        <p>1,000+ shoppers ke saath new arrivals, flash deals, aur WhatsApp-only offers receive karein.</p>
         <div className="nl-form"><input className="nl-inp" placeholder="Enter your phone number or email" /><button className="nl-btn" onClick={() => alert("Thank you for subscribing!")}>Subscribe & Save</button></div>
-        <div className="nl-trust">✓ No spam  ·  ✓ Unsubscribe anytime  ·  ✓ Exclusive deals</div>
+        <div className="nl-trust">No spam  ·  Unsubscribe anytime  ·  Exclusive deals</div>
+        <button type="button" className="admin-dot" aria-label="Admin access" onClick={onAdminAccess} />
       </div>
     </section>
   );
@@ -1321,7 +1265,7 @@ function SiteFooter({ setPage }) {
           <h4>Quick Links</h4><button onClick={() => setPage("home")}>Home</button><button onClick={() => setPage("shop")}>All Products</button><button onClick={() => setPage("track-order")}>Track Order</button><button onClick={() => setPage("about")}>About Us</button><button onClick={() => setPage("contact")}>Contact</button>
         </div>
         <div className="footer-col"><h4>Policies</h4><button onClick={() => setPage("privacy-policy")}>Privacy Policy</button><button onClick={() => setPage("returns")}>Refund Policy</button><button onClick={() => setPage("shipping-policy")}>Shipping Policy</button><button onClick={() => setPage("terms")}>Terms of Service</button><button onClick={() => setPage("faq")}>FAQs</button></div>
-        <div className="footer-col footer-newsletter"><h4>Newsletter</h4><p>Enter your email for updates</p><div className="footer-signup"><input placeholder="Email address" /><button>Sign Up</button></div><div className="footer-socials"><a href="#" className="social-a">f</a><a href="#" className="social-a">ig</a></div></div>
+        <div className="footer-col footer-newsletter"><h4>Newsletter</h4><p>Enter your email for updates</p><div className="footer-signup"><input placeholder="Email address" /><button>Get Deals</button></div><div className="footer-socials"><a href="#" className="social-a">f</a><a href="#" className="social-a">ig</a></div></div>
       </div>
       <div className="footer-bottom"><span>© 2026 ISmallOne PK. All rights reserved.</span><span>Cash on Delivery - 7-Day Return - WhatsApp Support</span></div>
     </footer>
@@ -1329,33 +1273,63 @@ function SiteFooter({ setPage }) {
 }
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage, onCategorySelect }) {
-  const featured = products.filter(p => p.featured);
-  const bestSellers = [...products].sort((a, b) => Number(b.soldCount || b.sold_count || 0) - Number(a.soldCount || a.sold_count || 0));
-  const topProducts = bestSellers.length ? bestSellers : products;
+function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage, onCategorySelect, onAdminAccess }) {
+  const featured = useMemo(() => products.filter(p => p.featured), [products]);
+  const allSortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => getSoldCount(b) - getSoldCount(a));
+  }, [products]);
+  const bestSellerLimit = getBestSellerLimit(allSortedProducts.length);
+  const topProducts = useMemo(() => allSortedProducts.slice(0, bestSellerLimit), [allSortedProducts, bestSellerLimit]);
   const heroProducts = useMemo(() => {
     const videoPicks = products.filter(hasProductVideo);
     const source = featured.length ? featured : topProducts;
-    return uniqueProductList([...videoPicks, ...source, ...topProducts, ...products]).slice(0, 6);
-  }, [products, featured, topProducts]);
+    return uniqueProductList([...videoPicks, ...source, ...topProducts, ...allSortedProducts]).slice(0, 6);
+  }, [products, featured, topProducts, allSortedProducts]);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [homeProductPage, setHomeProductPage] = useState(1);
   const homepageCategories = useMemo(() => {
     return ["All", ...STOREFRONT_CATEGORIES.map(category => category.name)];
   }, []);
+  const filteredHomeProducts = useMemo(() => {
+    if (activeCategory === "All") return allSortedProducts;
+    return allSortedProducts.filter(p => p.category === activeCategory);
+  }, [activeCategory, allSortedProducts]);
+  const totalHomePages = Math.max(1, Math.ceil(filteredHomeProducts.length / 9));
+  const safeHomePage = Math.min(homeProductPage, totalHomePages);
   const visibleProducts = useMemo(() => {
-    const base = topProducts;
-    if (activeCategory === "All") return base;
-    return base.filter(p => p.category === activeCategory);
-  }, [activeCategory, topProducts]);
+    const start = (safeHomePage - 1) * 9;
+    return filteredHomeProducts.slice(start, start + 9);
+  }, [filteredHomeProducts, safeHomePage]);
+  useEffect(() => {
+    setHomeProductPage(1);
+  }, [activeCategory]);
+  useEffect(() => {
+    setHomeProductPage(page => Math.min(page, totalHomePages));
+  }, [totalHomePages]);
   return (
     <main className="storefront-light">
-      <HeroBanner openProduct={openProduct} products={heroProducts.length ? heroProducts : topProducts} setPage={setPage} />
-      <CategoryGrid products={topProducts} onCategorySelect={onCategorySelect} />
+      <HeroBanner openProduct={openProduct} products={heroProducts.length ? heroProducts : allSortedProducts} setPage={setPage} />
+      <CategoryGrid products={allSortedProducts} onCategorySelect={onCategorySelect} />
       <TrendingCategories categories={homepageCategories} activeCategory={activeCategory} onChange={setActiveCategory} />
       <SaleRibbon />
       <section className="sec sf-best-section">
-        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Only the useful stuff, picked for real daily routines.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
-        <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Rozmarra ke kaam ke products, carefully selected.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
+        {visibleProducts.length ? (
+          <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
+        ) : (
+          <div className="empty-state home-empty"><h3>No products found</h3><p>Is category mein abhi products add nahi hue.</p></div>
+        )}
+        {totalHomePages > 1 && (
+          <div className="home-pagination" aria-label="All products pages">
+            <button className="page-btn page-arrow" disabled={safeHomePage === 1} onClick={() => setHomeProductPage(page => Math.max(1, page - 1))}>‹</button>
+            {getPaginationItems(safeHomePage, totalHomePages).map(item => (
+              typeof item === "string"
+                ? <span key={item} className="page-ellipsis">...</span>
+                : <button key={item} className={`page-btn ${item === safeHomePage ? "active" : ""}`} aria-current={item === safeHomePage ? "page" : undefined} onClick={() => setHomeProductPage(item)}>{item}</button>
+            ))}
+            <button className="page-btn page-arrow" disabled={safeHomePage === totalHomePages} onClick={() => setHomeProductPage(page => Math.min(totalHomePages, page + 1))}>›</button>
+          </div>
+        )}
       </section>
       <section className="sf-selling-section">
         <ProductRow title="Best Selling" eyebrow="Customer favorites" products={topProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
@@ -1363,6 +1337,7 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
       <StatsSection />
       <Testimonials />
       <StoreFAQ />
+      <Newsletter onAdminAccess={onAdminAccess} />
     </main>
   );
 }
@@ -1385,7 +1360,7 @@ function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, add
     if (sortBy === "price-low") list.sort((a, b) => a.price - b.price);
     if (sortBy === "price-high") list.sort((a, b) => b.price - a.price);
     if (sortBy === "rating") list.sort((a, b) => b.rating - a.rating);
-    if (sortBy === "sold") list.sort((a, b) => b.soldCount - a.soldCount);
+    if (sortBy === "sold") list.sort((a, b) => getSoldCount(b) - getSoldCount(a));
     return list;
   }, [products, search, cat, sortBy]);
   return (
@@ -2432,7 +2407,7 @@ function AdminPage({
       {activeTab === "users" && (
         <div className="admin-card">
           <h3>Registered Users ({[].length || 0})</h3>
-          <div style={{ padding: "40px", color: "#888", textAlign: "center" }}>No registered users yet.</div>
+          <div style={{ padding: "40px", color: "#888", textAlign: "center" }}>Customer accounts are disabled.</div>
         </div>
       )}
 
@@ -2999,6 +2974,16 @@ const CSS = `
   .nl-btn{height:50px;padding:0 20px;background:var(--red);color:white;border-radius:var(--r);font-size:14px;font-weight:700;white-space:nowrap;transition:all .2s;}
   .nl-btn:hover{background:var(--red-dark)}
   .nl-trust{font-size:12px;color:var(--muted)}
+  .admin-dot{width:8px;height:8px;border-radius:50%;background:var(--red);display:block;margin:18px auto 0;border:0;opacity:.72;box-shadow:0 0 0 0 rgba(232,25,44,.25);transition:opacity .2s,transform .2s,box-shadow .2s;}
+  .admin-dot:hover{opacity:1;transform:scale(1.35);box-shadow:0 0 0 8px rgba(232,25,44,.08);}
+  .home-pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:34px;flex-wrap:wrap;}
+  .page-btn{min-width:46px;height:46px;border-radius:14px;border:1.5px solid var(--border);background:#fff;color:#4b5563;font-size:20px;font-weight:800;display:grid;place-items:center;transition:all .2s;box-shadow:0 8px 20px rgba(27,67,50,.06);}
+  .page-btn:hover:not(:disabled){border-color:var(--forest);color:var(--forest);transform:translateY(-2px);}
+  .page-btn.active{background:var(--forest);border-color:var(--forest);color:#fff;box-shadow:0 14px 28px rgba(27,67,50,.18);}
+  .page-btn:disabled{opacity:.32;cursor:not-allowed;}
+  .page-arrow{font-size:30px;font-weight:500;}
+  .page-ellipsis{min-width:42px;text-align:center;color:#4b5563;font-size:24px;font-weight:800;letter-spacing:.08em;}
+  .home-empty{margin-top:10px;}
 
   /* ── FOOTER ── */
   .footer{background:var(--dark);color:rgba(255,255,255,.7);padding:0;overflow:hidden;}
@@ -3844,6 +3829,10 @@ const CSS = `
     .pdp-wa-tertiary{width:100%;justify-content:center;border-radius:8px;}
     .pdp-timeline{padding:12px 8px;}
     .tl-line{flex-basis:18px;}
+    .home-pagination{gap:8px;margin-top:26px;}
+    .page-btn{min-width:42px;height:42px;border-radius:12px;font-size:17px;}
+    .page-arrow{font-size:26px;}
+    .page-ellipsis{min-width:30px;font-size:20px;}
     .live-feed-popup{left:10px;bottom:86px;max-width:250px;width:min(250px,calc(100vw - 20px));pointer-events:none;}
     .live-feed-inner{pointer-events:none;}
     .live-feed-close{display:none;}
@@ -4807,7 +4796,10 @@ export default function App() {
     const timer = setTimeout(() => setMinLoading(false), 750);
     return () => clearTimeout(timer);
   }, []);
-  const [page, setPage] = useState(() => localStorage.getItem("iso_last_page") || "home");
+  const [page, setPage] = useState(() => {
+    const savedPage = localStorage.getItem("iso_last_page");
+    return savedPage && savedPage !== "admin" ? savedPage : "home";
+  });
 
   useEffect(() => {
     localStorage.setItem("iso_last_page", page);
@@ -4820,7 +4812,6 @@ export default function App() {
   const [lastOrder, setLastOrder] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
-  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [toast, setToast] = useState({ message: "", visible: false });
   const [transitionTrigger, setTransitionTrigger] = useState(0);
   useEffect(() => {
@@ -5052,7 +5043,7 @@ export default function App() {
 
   const renderPage = () => {
     switch (page) {
-      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} />;
+      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} onAdminAccess={() => setShowAuth(true)} />;
       case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} initialCategory={shopCategory} />;
       case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
       case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
@@ -5067,8 +5058,8 @@ export default function App() {
       case "terms": return <TermsPage />;
       case "faq": return <FAQPage faqs={faqs} />;
       case "track-order": return <TrackOrderPage settings={settings} />;
-      case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => { setIsAdminLogin(true); setShowAuth(true); }} showToast={showToast} />;
-      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} />;
+      case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => setShowAuth(true)} showToast={showToast} />;
+      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} onAdminAccess={() => setShowAuth(true)} />;
     }
   };
   const isReady = !loading && !minLoading;
@@ -5079,7 +5070,7 @@ export default function App() {
 
       <div style={{ opacity: isReady ? 1 : 0, transition: "opacity 0.25s ease" }}>
         <PageTransition trigger={transitionTrigger} />
-        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onCategorySelect={openCategory} onOpenAuth={() => { setIsAdminLogin(false); setShowAuth(true); }} onLogout={async () => {
+        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onCategorySelect={openCategory} onLogout={async () => {
           await supabase.auth.signOut();
           setCurrentUser(null);
         }} />
@@ -5091,7 +5082,7 @@ export default function App() {
         <WhatsAppFloat number={settings.whatsappNumber} />
         <LiveActivityFeed products={products} />
         <Toast message={toast.message} visible={toast.visible} />
-        {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); showToast(`Welcome, ${user.name}!`); }} dbUsers={[]} setDbUsers={() => { }} isAdminLogin={isAdminLogin} />}
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={(user) => { setCurrentUser(user); showToast(`Welcome, ${user.name}!`); }} />}
       </div>
     </>
   );
