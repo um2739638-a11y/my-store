@@ -3,6 +3,7 @@
 import { supabase } from "./lib/supabase";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getProducts, getOrders, getSettings, updateSettings, getCoupons, addCoupon, deleteCoupon, getFaqs, addFaq, deleteFaq, addProduct as apiAddProduct, updateProduct as apiUpdateProduct, deleteProduct as apiDeleteProduct, placeOrder as apiPlaceOrder, updateOrderStatus as apiUpdateOrderStatus } from "./lib/api";
 import { DESIGN_TOKENS, STORE_BRAND } from "./designTokens";
 
@@ -52,6 +53,64 @@ function cleanProductName(name = "") {
     .replace(/\s+([,&|()-])/g, "$1")
     .replace(/([|(])\s+/g, "$1")
     .trim();
+}
+function slugify(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90) || "product";
+}
+function shortProductId(product = {}) {
+  const raw = String(product.id ?? product.product_id ?? product.sku ?? "");
+  return raw.toLowerCase().replace(/[^a-z0-9]/g, "").slice(-8);
+}
+function productSlug(product = {}) {
+  const base = slugify(cleanProductName(product.name) || product.name || "product");
+  const suffix = shortProductId(product);
+  return suffix ? `${base}-${suffix}` : base;
+}
+function productPath(product = {}) {
+  return `/product/${productSlug(product)}`;
+}
+function findProductBySlug(products = [], slug = "") {
+  const normalizedSlug = String(slug || "");
+  return products.find(product => productSlug(product) === normalizedSlug)
+    || products.find(product => shortProductId(product) && normalizedSlug.endsWith(shortProductId(product)))
+    || products.find(product => slugify(cleanProductName(product.name)) === normalizedSlug)
+    || null;
+}
+const PAGE_PATHS = {
+  home: "/",
+  shop: "/shop",
+  wishlist: "/wishlist",
+  cart: "/cart",
+  checkout: "/checkout",
+  confirmation: "/confirmation",
+  about: "/about",
+  contact: "/contact",
+  "shipping-policy": "/shipping-policy",
+  returns: "/returns",
+  "privacy-policy": "/privacy-policy",
+  terms: "/terms",
+  faq: "/faq",
+  "track-order": "/track-order",
+  admin: "/admin",
+};
+function pagePath(pageName, options = {}) {
+  const base = PAGE_PATHS[pageName] || "/";
+  if (pageName === "shop" && options.category && options.category !== "All") {
+    return `${base}?category=${encodeURIComponent(options.category)}`;
+  }
+  return base;
+}
+function pageFromPath(pathname = "/") {
+  const clean = pathname.replace(/\/+$/, "") || "/";
+  if (clean === "/") return "home";
+  if (clean.startsWith("/product/")) return "product";
+  return Object.entries(PAGE_PATHS).find(([, path]) => path === clean)?.[0] || "home";
 }
 function hasProductVideo(product) {
   return Boolean(product?.video && String(product.video).trim());
@@ -715,7 +774,8 @@ function BuyNowButton({ onClick, label = "Order Now" }) {
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ settings, page, setPage, search, setSearch, cartCount, wishlistCount, currentUser, onLogout, onCategorySelect }) {
+function Header({ settings, page, search, setSearch, cartCount, wishlistCount, currentUser, onLogout, onCategorySelect }) {
+  const routerNavigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -740,11 +800,14 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
     return () => { document.body.style.overflow = ""; };
   }, [mobileMenuOpen]);
 
-  const navTo = (p) => { setPage(p); setMobileMenuOpen(false); };
+  const navTo = (p) => { routerNavigate(pagePath(p)); setMobileMenuOpen(false); };
   const selectCategory = (category) => {
     if (onCategorySelect) onCategorySelect(category);
-    else navTo("shop");
+    else routerNavigate(pagePath("shop", { category }));
     setMobileMenuOpen(false);
+  };
+  const goShopForSearch = () => {
+    routerNavigate(pagePath("shop"));
   };
 
   return (
@@ -773,7 +836,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
           <div className="hdr-right">
             <div className="hdr-search desktop-only">
               <span className="hdr-search-ico" aria-hidden="true">⌕</span>
-              <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); setPage("shop"); }} />
+              <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); goShopForSearch(); }} />
             </div>
             <button className="hdr-icon-btn mobile-only" onClick={() => setMobileSearchOpen(v => !v)} aria-label="Search products">
               <span className="hdr-mobile-icon" aria-hidden="true">⌕</span>
@@ -814,7 +877,7 @@ function Header({ settings, page, setPage, search, setSearch, cartCount, wishlis
         {mobileSearchOpen && (
           <div className="mobile-search-bar">
             <span className="hdr-search-ico" aria-hidden="true">⌕</span>
-            <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); setPage("shop"); }} autoFocus />
+            <input className="hdr-search-inp" placeholder="Search products…" value={search} onChange={e => { setSearch(e.target.value); goShopForSearch(); }} autoFocus />
             <button onClick={() => setMobileSearchOpen(false)} style={{ padding: "0 12px", color: "var(--muted)", fontSize: "18px" }}>✕</button>
           </div>
         )}
@@ -918,7 +981,8 @@ function ProductVisual({ product, className = "", label = "", loading = "lazy", 
 }
 
 // ─── HERO BANNER ──────────────────────────────────────────────────────────────
-function HeroBanner({ openProduct, products, setPage }) {
+function HeroBanner({ openProduct, products }) {
+  const routerNavigate = useNavigate();
   const heroProducts = useMemo(() => {
     const videoPicks = products.filter(hasProductVideo);
     const priority = products.filter(product => /earbud|headphone|audio|watch|charger|lamp|gadget|kitchen|home/i.test([product.name, product.category].join(" ")));
@@ -950,8 +1014,8 @@ function HeroBanner({ openProduct, products, setPage }) {
         <h1>{heroTitle}</h1>
         <p>{heroSubtitle}</p>
         <div className="sf-hero-actions">
-          <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}>Top Products Dekho</button>
-          <button className="sf-btn sf-btn-secondary" onClick={() => setPage("shop")}>View All Products</button>
+          <button className="sf-btn sf-btn-primary" onClick={() => mainProduct ? openProduct(mainProduct) : routerNavigate(pagePath("shop"))}>Top Products Dekho</button>
+          <button className="sf-btn sf-btn-secondary" onClick={() => routerNavigate(pagePath("shop"))}>View All Products</button>
         </div>
         <div className="sf-hero-trust"><span>Cash on Delivery</span><span className="sf-hero-deal">4 items par free shipping</span><span>Dispatch se pehle checked</span><span>7 din return support</span></div>
       </div>
@@ -960,7 +1024,7 @@ function HeroBanner({ openProduct, products, setPage }) {
         <button
           className="sf-hero-product sf-hero-fade"
           key={`product-${mainProduct?.id || activeSlide}`}
-          onClick={() => mainProduct ? openProduct(mainProduct) : setPage("shop")}
+          onClick={() => mainProduct ? openProduct(mainProduct) : routerNavigate(pagePath("shop"))}
         >
           <ProductVisual product={mainProduct} className="sf-hero-product-img" label="Featured Product" loading="eager" preferVideo />
           <span>{mainProduct ? cleanProductName(mainProduct.name) : "Featured Product"}</span>
@@ -1182,12 +1246,13 @@ function BrandBanner({ openProduct, product }) {
 }
 
 // ─── PROMO STRIP ──────────────────────────────────────────────────────────────
-function PromoStrip({ setPage }) {
+function PromoStrip() {
+  const routerNavigate = useNavigate();
   return (
     <section className="promo-strip">
-      <div className="promo-card promo-card-1"><div className="promo-content"><span className="promo-tag">Summer 2026</span><h3>Beat the Heat</h3><p>Up to 40% off on cooling gadgets</p><button className="promo-btn" onClick={() => setPage("shop")}>Shop Now →</button></div><span className="promo-emoji">☀️</span></div>
-      <div className="promo-card promo-card-2"><div className="promo-content"><span className="promo-tag">New Arrivals</span><h3>Smart Watch Season</h3><p>Latest models, best prices in PK</p><button className="promo-btn" onClick={() => setPage("shop")}>Explore →</button></div><span className="promo-emoji">⌚</span></div>
-      <div className="promo-card promo-card-3"><div className="promo-content"><span className="promo-tag">Live Tracking</span><h3>Track Your Order</h3><p>Check your order status anytime</p><button className="promo-btn" onClick={() => setPage("track-order")}>Track Now →</button></div><span className="promo-emoji">📦</span></div>
+      <div className="promo-card promo-card-1"><div className="promo-content"><span className="promo-tag">Summer 2026</span><h3>Beat the Heat</h3><p>Up to 40% off on cooling gadgets</p><button className="promo-btn" onClick={() => routerNavigate(pagePath("shop"))}>Shop Now →</button></div><span className="promo-emoji">☀️</span></div>
+      <div className="promo-card promo-card-2"><div className="promo-content"><span className="promo-tag">New Arrivals</span><h3>Smart Watch Season</h3><p>Latest models, best prices in PK</p><button className="promo-btn" onClick={() => routerNavigate(pagePath("shop"))}>Explore →</button></div><span className="promo-emoji">⌚</span></div>
+      <div className="promo-card promo-card-3"><div className="promo-content"><span className="promo-tag">Live Tracking</span><h3>Track Your Order</h3><p>Check your order status anytime</p><button className="promo-btn" onClick={() => routerNavigate(pagePath("track-order"))}>Track Now →</button></div><span className="promo-emoji">📦</span></div>
     </section>
   );
 }
@@ -1254,7 +1319,8 @@ function Newsletter({ onAdminAccess }) {
 }
 
 // ─── SITE FOOTER ──────────────────────────────────────────────────────────────
-function SiteFooter({ setPage }) {
+function SiteFooter() {
+  const routerNavigate = useNavigate();
   return (
     <footer className="footer">
       <div className="footer-top">
@@ -1262,9 +1328,9 @@ function SiteFooter({ setPage }) {
           {/* FIXED: footer follows requested three-column layout while keeping the ISmallOne brand visible. */}
           <div className="footer-logo"><span className="hdr-logo-mark">ISO</span><span className="footer-logo-txt">ISmallOne</span></div>
           <p>Gadgets, accessories, and useful finds selected for everyday Pakistani homes.</p>
-          <h4>Quick Links</h4><button onClick={() => setPage("home")}>Home</button><button onClick={() => setPage("shop")}>All Products</button><button onClick={() => setPage("track-order")}>Track Order</button><button onClick={() => setPage("about")}>About Us</button><button onClick={() => setPage("contact")}>Contact</button>
+          <h4>Quick Links</h4><button onClick={() => routerNavigate(pagePath("home"))}>Home</button><button onClick={() => routerNavigate(pagePath("shop"))}>All Products</button><button onClick={() => routerNavigate(pagePath("track-order"))}>Track Order</button><button onClick={() => routerNavigate(pagePath("about"))}>About Us</button><button onClick={() => routerNavigate(pagePath("contact"))}>Contact</button>
         </div>
-        <div className="footer-col"><h4>Policies</h4><button onClick={() => setPage("privacy-policy")}>Privacy Policy</button><button onClick={() => setPage("returns")}>Refund Policy</button><button onClick={() => setPage("shipping-policy")}>Shipping Policy</button><button onClick={() => setPage("terms")}>Terms of Service</button><button onClick={() => setPage("faq")}>FAQs</button></div>
+        <div className="footer-col"><h4>Policies</h4><button onClick={() => routerNavigate(pagePath("privacy-policy"))}>Privacy Policy</button><button onClick={() => routerNavigate(pagePath("returns"))}>Refund Policy</button><button onClick={() => routerNavigate(pagePath("shipping-policy"))}>Shipping Policy</button><button onClick={() => routerNavigate(pagePath("terms"))}>Terms of Service</button><button onClick={() => routerNavigate(pagePath("faq"))}>FAQs</button></div>
         <div className="footer-col footer-newsletter"><h4>Newsletter</h4><p>Enter your email for updates</p><div className="footer-signup"><input placeholder="Email address" /><button>Get Deals</button></div><div className="footer-socials"><a href="#" className="social-a">f</a><a href="#" className="social-a">ig</a></div></div>
       </div>
       <div className="footer-bottom"><span>© 2026 ISmallOne PK. All rights reserved.</span><span>Cash on Delivery - 7-Day Return - WhatsApp Support</span></div>
@@ -1273,7 +1339,8 @@ function SiteFooter({ setPage }) {
 }
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, setPage, onCategorySelect, onAdminAccess }) {
+function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, onCategorySelect, onAdminAccess }) {
+  const routerNavigate = useNavigate();
   const featured = useMemo(() => products.filter(p => p.featured), [products]);
   const allSortedProducts = useMemo(() => {
     return [...products].sort((a, b) => getSoldCount(b) - getSoldCount(a));
@@ -1308,12 +1375,12 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
   }, [totalHomePages]);
   return (
     <main className="storefront-light">
-      <HeroBanner openProduct={openProduct} products={heroProducts.length ? heroProducts : allSortedProducts} setPage={setPage} />
+      <HeroBanner openProduct={openProduct} products={heroProducts.length ? heroProducts : allSortedProducts} />
       <CategoryGrid products={allSortedProducts} onCategorySelect={onCategorySelect} />
       <TrendingCategories categories={homepageCategories} activeCategory={activeCategory} onChange={setActiveCategory} />
       <SaleRibbon />
       <section className="sec sf-best-section">
-        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Rozmarra ke kaam ke products, carefully selected.</p></div><button className="view-all" onClick={() => setPage("shop")}>View All</button></div>
+        <div className="sec-head"><div><div className="eyebrow">Featured collection</div><h2 className="sec-h2">All Products</h2><p className="sec-sub">Rozmarra ke kaam ke products, carefully selected.</p></div><button className="view-all" onClick={() => routerNavigate(pagePath("shop"))}>View All</button></div>
         {visibleProducts.length ? (
           <PGrid products={visibleProducts} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
         ) : (
@@ -1343,16 +1410,18 @@ function HomePage({ products, wishlist, toggleWishlist, openProduct, addToCart, 
 }
 
 // ─── SHOP PAGE ────────────────────────────────────────────────────────────────
-function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, addToCart, initialCategory = "All" }) {
+function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, addToCart }) {
+  const routerNavigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [sortBy, setSortBy] = useState("featured");
-  const [cat, setCat] = useState(initialCategory || "All");
+  const cat = searchParams.get("category") || "All";
   const cats = useMemo(() => {
     const productCats = [...new Set(products.map(p => p.category).filter(Boolean))];
-    return ["All", ...new Set([...STOREFRONT_CATEGORIES.map(category => category.name), ...productCats, initialCategory].filter(Boolean))];
-  }, [products, initialCategory]);
-  useEffect(() => {
-    setCat(initialCategory || "All");
-  }, [initialCategory]);
+    return ["All", ...new Set([...STOREFRONT_CATEGORIES.map(category => category.name), ...productCats, cat].filter(Boolean))];
+  }, [products, cat]);
+  const setCat = (nextCategory) => {
+    routerNavigate(pagePath("shop", { category: nextCategory }));
+  };
   const filtered = useMemo(() => {
     let list = [...products];
     if (search.trim()) list = list.filter(p => [p.name, p.category, p.shortDescription].join(" ").toLowerCase().includes(search.toLowerCase()));
@@ -1559,18 +1628,51 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
   );
 }
 
+function ProductRoutePage({ settings, products, wishlist, toggleWishlist, openProduct, addToCart, buyNow }) {
+  const { slug } = useParams();
+  const routerNavigate = useNavigate();
+  const product = useMemo(() => findProductBySlug(products, slug), [products, slug]);
+  if (!product) {
+    return (
+      <main>
+        <section className="sec">
+          <div className="empty-state">
+            <span className="empty-ico">📦</span>
+            <h3>Product not found</h3>
+            <p>This product may have been removed or the link is old.</p>
+            <button className="btn-red-lg" onClick={() => routerNavigate(pagePath("shop"))} style={{ marginTop: "16px" }}>Browse Products</button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+  return (
+    <ProductPage
+      settings={settings}
+      product={product}
+      products={products}
+      wishlist={wishlist}
+      toggleWishlist={toggleWishlist}
+      openProduct={openProduct}
+      addToCart={addToCart}
+      buyNow={buyNow}
+    />
+  );
+}
+
 // ─── WISHLIST PAGE ────────────────────────────────────────────────────────────
 function WishlistPage({ items, wishlist, toggleWishlist, openProduct, addToCart }) {
   return (<main><section className="sec"><div className="sec-head"><div className="eyebrow">Saved Items</div><h1 className="sec-h2">Your Wishlist</h1><p className="sec-sub">{items.length} item{items.length !== 1 ? "s" : ""} saved</p></div>{items.length ? <PGrid products={items} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} /> : (<div className="empty-state"><span className="empty-ico">♡</span><h3>Your wishlist is empty</h3><p>Save products you love and come back to them later.</p></div>)}</section></main>);
 }
 
 // ─── CART PAGE ────────────────────────────────────────────────────────────────
-function CartPage({ cart, setPage, updateCartQty, removeFromCart, subtotal, shipping, total }) {
+function CartPage({ cart, updateCartQty, removeFromCart, subtotal, shipping, total }) {
+  const routerNavigate = useNavigate();
   return (
     <main><section className="sec">
       <div className="sec-head"><div className="eyebrow">Shopping Cart</div><h1 className="sec-h2">Your Cart</h1><p className="sec-sub">{cart.length} item{cart.length !== 1 ? "s" : ""}</p></div>
       {!cart.length ? (
-        <div className="empty-state"><span className="empty-ico">🛒</span><h3>Your cart is empty</h3><p>Add some products to get started.</p><button className="btn-red-lg" onClick={() => setPage("shop")} style={{ marginTop: "16px" }}>Browse Products</button></div>
+        <div className="empty-state"><span className="empty-ico">🛒</span><h3>Your cart is empty</h3><p>Add some products to get started.</p><button className="btn-red-lg" onClick={() => routerNavigate(pagePath("shop"))} style={{ marginTop: "16px" }}>Browse Products</button></div>
       ) : (
         <div className="cart-layout">
           <div className="cart-items">
@@ -1591,8 +1693,8 @@ function CartPage({ cart, setPage, updateCartQty, removeFromCart, subtotal, ship
             {shipping > 0 && <p className="free-hint">Add {money(3000 - subtotal)} more for free shipping</p>}
             <div className="sum-divider" />
             <div className="sum-row total"><span>Total</span><strong>{money(total)}</strong></div>
-            <button className="btn-checkout" onClick={() => setPage("checkout")}>Proceed to Checkout →</button>
-            <button className="btn-continue" onClick={() => setPage("shop")}>Continue Shopping</button>
+            <button className="btn-checkout" onClick={() => routerNavigate(pagePath("checkout"))}>Proceed to Checkout →</button>
+            <button className="btn-continue" onClick={() => routerNavigate(pagePath("shop"))}>Continue Shopping</button>
             <div className="secure-row"><span>🔒 Secure</span><span>💵 COD</span></div>
           </div>
         </div>
@@ -1680,9 +1782,10 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder, coupons }) 
 }
 
 // ─── CONFIRMATION PAGE ────────────────────────────────────────────────────────
-function ConfirmationPage({ order, setPage }) {
+function ConfirmationPage({ order }) {
+  const routerNavigate = useNavigate();
   return (
-    <main><section className="sec"><div className="confirm-wrap"><div className="confirm-ico">✓</div><h1>Order Placed!</h1><p>We'll contact you on WhatsApp to confirm delivery details.</p>{order && (<div className="confirm-details"><div className="cd-row-info"><span>Order ID</span><strong>{order.order_id || order.orderId || order.id}</strong></div><div className="cd-row-info"><span>Date</span><strong>{formatDate(order.createdAt || order.created_at)}</strong></div><div className="cd-row-info"><span>Total</span><strong>{money(order.total)}</strong></div><div className="cd-row-info"><span>Status</span><strong className="status-badge">{order.status}</strong></div></div>)}<div className="confirm-btns"><button className="btn-red-lg" onClick={() => setPage("home")}>Continue Shopping</button><button className="btn-outline-lg" onClick={() => setPage("shop")}>Browse More</button></div></div></section></main>
+    <main><section className="sec"><div className="confirm-wrap"><div className="confirm-ico">✓</div><h1>Order Placed!</h1><p>We'll contact you on WhatsApp to confirm delivery details.</p>{order && (<div className="confirm-details"><div className="cd-row-info"><span>Order ID</span><strong>{order.order_id || order.orderId || order.id}</strong></div><div className="cd-row-info"><span>Date</span><strong>{formatDate(order.createdAt || order.created_at)}</strong></div><div className="cd-row-info"><span>Total</span><strong>{money(order.total)}</strong></div><div className="cd-row-info"><span>Status</span><strong className="status-badge">{order.status}</strong></div></div>)}<div className="confirm-btns"><button className="btn-red-lg" onClick={() => routerNavigate(pagePath("home"))}>Continue Shopping</button><button className="btn-outline-lg" onClick={() => routerNavigate(pagePath("shop"))}>Browse More</button></div></div></section></main>
   );
 }
 
@@ -4783,6 +4886,9 @@ const CSS = `
 `;
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const routerNavigate = useNavigate();
+  const location = useLocation();
+  const page = pageFromPath(location.pathname);
 
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -4796,24 +4902,17 @@ export default function App() {
     const timer = setTimeout(() => setMinLoading(false), 750);
     return () => clearTimeout(timer);
   }, []);
-  const [page, setPage] = useState(() => {
-    const savedPage = localStorage.getItem("iso_last_page");
-    return savedPage && savedPage !== "admin" ? savedPage : "home";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("iso_last_page", page);
-  }, [page]);
   const [search, setSearch] = useState("");
-  const [shopCategory, setShopCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
-  const [currentProduct, setCurrentProduct] = useState(null);
   const [lastOrder, setLastOrder] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [toast, setToast] = useState({ message: "", visible: false });
-  const [transitionTrigger, setTransitionTrigger] = useState(0);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [location.pathname, location.search]);
   useEffect(() => {
     async function loadAll() {
       try {
@@ -4861,18 +4960,10 @@ export default function App() {
     loadAll();
   }, []);
 
-  const navigate = useCallback((p, options = {}) => {
-    if (p === "shop" && !options.keepCategory) setShopCategory("All");
-    setTransitionTrigger(t => t + 1);
-    setTimeout(() => setPage(p), 200);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
   const openCategory = useCallback((category) => {
-    setShopCategory(category || "All");
     setSearch("");
-    navigate("shop", { keepCategory: true });
-  }, [navigate]);
+    routerNavigate(pagePath("shop", { category: category || "All" }));
+  }, [routerNavigate]);
 
   const showToast = useCallback((msg) => {
     setToast({ message: msg, visible: true });
@@ -4880,9 +4971,8 @@ export default function App() {
   }, []);
 
   const openProduct = useCallback((product) => {
-    setCurrentProduct(product);
-    navigate("product");
-  }, [navigate]);
+    if (product) routerNavigate(productPath(product));
+  }, [routerNavigate]);
 
   const addToCart = useCallback((product, qty = 1, variant = null, unitPrice = null) => {
     const price = unitPrice || variant?.price || product.price;
@@ -4897,8 +4987,8 @@ export default function App() {
 
   const buyNow = useCallback((product, qty = 1, variant = null, unitPrice = null) => {
     addToCart(product, qty, variant, unitPrice);
-    navigate("checkout");
-  }, [addToCart, navigate]);
+    routerNavigate(pagePath("checkout"));
+  }, [addToCart, routerNavigate]);
 
   const updateCartQty = useCallback((id, qty) => {
     if (qty < 1) setCart(prev => prev.filter(i => i.id !== id));
@@ -4953,12 +5043,12 @@ export default function App() {
       setOrders(prev => [saved, ...prev]);
       setLastOrder(saved);
       setCart([]);
-      navigate("confirmation");
+      routerNavigate(pagePath("confirmation"));
     } catch (err) {
       showToast("Failed to place order. Try again.");
       console.error(err);
     }
-  }, [cart, subtotal, shipping, total, coupons, showToast, navigate]);
+  }, [cart, subtotal, shipping, total, coupons, showToast, routerNavigate]);
 
 
 
@@ -4981,14 +5071,13 @@ export default function App() {
       const data = await apiUpdateProduct(id, productFormToSupabasePayload(form));
       const normalized = normalizeProduct(data);
       setProducts(prev => prev.map(p => p.id === id ? normalized : p));
-      if (currentProduct?.id === id) setCurrentProduct(normalized);
       showToast("Product updated in Supabase.");
     } catch (err) {
       console.error(err);
       showToast(err.message || "Failed to update product.");
       throw err;
     }
-  }, [currentProduct?.id, showToast]);
+  }, [showToast]);
 
   const deleteProduct = useCallback(async (id) => {
     try {
@@ -5041,27 +5130,6 @@ export default function App() {
 
 
 
-  const renderPage = () => {
-    switch (page) {
-      case "home": return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} onAdminAccess={() => setShowAuth(true)} />;
-      case "shop": return <ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} initialCategory={shopCategory} />;
-      case "product": return currentProduct ? <ProductPage settings={settings} product={currentProduct} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} /> : null;
-      case "wishlist": return <WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />;
-      case "cart": return <CartPage cart={cart} setPage={navigate} updateCartQty={updateCartQty} removeFromCart={removeFromCart} subtotal={subtotal} shipping={shipping} total={total} />;
-      case "checkout": return <CheckoutPage cart={cart} subtotal={subtotal} shipping={shipping} total={total} placeOrder={placeOrder} coupons={coupons} />;
-      case "confirmation": return <ConfirmationPage order={lastOrder} setPage={navigate} />;
-      case "about": return <AboutPage />;
-      case "contact": return <ContactPage settings={settings} />;
-      case "shipping-policy": return <ShippingPolicyPage />;
-      case "returns": return <ReturnPolicyPage />;
-      case "privacy-policy": return <PrivacyPolicyPage />;
-      case "terms": return <TermsPage />;
-      case "faq": return <FAQPage faqs={faqs} />;
-      case "track-order": return <TrackOrderPage settings={settings} />;
-      case "admin": return <AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => setShowAuth(true)} showToast={showToast} />;
-      default: return <HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} setPage={navigate} onCategorySelect={openCategory} onAdminAccess={() => setShowAuth(true)} />;
-    }
-  };
   const isReady = !loading && !minLoading;
   return (
     <>
@@ -5069,16 +5137,34 @@ export default function App() {
       <SplashLoader ready={isReady} />
 
       <div style={{ opacity: isReady ? 1 : 0, transition: "opacity 0.25s ease" }}>
-        <PageTransition trigger={transitionTrigger} />
-        <Header settings={settings} page={page} setPage={navigate} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onCategorySelect={openCategory} onLogout={async () => {
+        <PageTransition trigger={`${location.key}-${location.pathname}-${location.search}`} />
+        <Header settings={settings} page={page} search={search} setSearch={setSearch} cartCount={cart.reduce((s, i) => s + i.qty, 0)} wishlistCount={wishlist.length} currentUser={currentUser} onCategorySelect={openCategory} onLogout={async () => {
           await supabase.auth.signOut();
           setCurrentUser(null);
         }} />
 
 
-        {renderPage()}
+        <Routes>
+          <Route path="/" element={<HomePage products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} onCategorySelect={openCategory} onAdminAccess={() => setShowAuth(true)} />} />
+          <Route path="/shop" element={<ShopPage products={products} search={search} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />} />
+          <Route path="/product/:slug" element={<ProductRoutePage settings={settings} products={products} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} buyNow={buyNow} />} />
+          <Route path="/wishlist" element={<WishlistPage items={wishlistItems} wishlist={wishlist} toggleWishlist={toggleWishlist} openProduct={openProduct} addToCart={addToCart} />} />
+          <Route path="/cart" element={<CartPage cart={cart} updateCartQty={updateCartQty} removeFromCart={removeFromCart} subtotal={subtotal} shipping={shipping} total={total} />} />
+          <Route path="/checkout" element={<CheckoutPage cart={cart} subtotal={subtotal} shipping={shipping} total={total} placeOrder={placeOrder} coupons={coupons} />} />
+          <Route path="/confirmation" element={<ConfirmationPage order={lastOrder} />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage settings={settings} />} />
+          <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
+          <Route path="/returns" element={<ReturnPolicyPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/faq" element={<FAQPage faqs={faqs} />} />
+          <Route path="/track-order" element={<TrackOrderPage settings={settings} />} />
+          <Route path="/admin" element={<AdminPage products={products} orders={orders} settings={settings} saveSettings={handleSaveSettings} coupons={coupons} setCoupons={setCoupons} faqs={faqs} setFaqs={setFaqs} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} updateOrderStatus={updateOrderStatus} currentUser={currentUser} onOpenAdminAuth={() => setShowAuth(true)} showToast={showToast} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
         <PremiumMotionLayer page={page} />
-        <SiteFooter setPage={navigate} />
+        <SiteFooter />
         <WhatsAppFloat number={settings.whatsappNumber} />
         <LiveActivityFeed products={products} />
         <Toast message={toast.message} visible={toast.visible} />
