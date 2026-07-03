@@ -1447,6 +1447,18 @@ function ShopPage({ products, search, wishlist, toggleWishlist, openProduct, add
 }
 
 // ─── PRODUCT PAGE ─────────────────────────────────────────────────────────────
+function PdpSaleTrust() {
+  return (
+    <div className="pdp-title-trust" aria-label="Sale item, rated 4.5 stars, trusted">
+      <span className="pdp-sale-sticker">SALE</span>
+      <span className="pdp-half-stars" aria-hidden="true">
+        <span>★</span><span>★</span><span>★</span><span>★</span><span className="half">★</span>
+      </span>
+      <span className="pdp-trusted-word">Trusted</span>
+    </div>
+  );
+}
+
 function ProductPage({ settings, product, products, wishlist, toggleWishlist, openProduct, addToCart, buyNow }) {
   const hasVideo = !!product.video;
   const mediaItems = [
@@ -1514,13 +1526,14 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
   ];
 
   return (
-    <main>
+    <main className="pdp-page">
       <section className="sec">
         <div className="breadcrumb"><span>Home</span> › <span>{product.category}</span> › <span className="bc-cur">{product.name}</span></div>
         <div className="pdp">
           <div className="pdp-mobile-head">
             <div className="pdp-cat">{product.category}</div>
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
+            <PdpSaleTrust />
           </div>
           <div className="pdp-gallery">
             <div className="pdp-main-box">
@@ -1559,6 +1572,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
           <div className="pdp-info">
             <div className="pdp-cat">{product.category}</div>
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
+            <PdpSaleTrust />
             <div className="pdp-rating-row"><RatingStars rating={product.rating || 5} size="md" /><span className="pdp-rv">Rated {product.rating || 5}/5 · {(product.reviewCount || 0) + 24} reviews</span><span className="pdp-verified">✓ Verified</span></div>
             {/* FIXED: PDP trust badge row added per audit spec. */}
             <div className="pdp-trust-badges"><span>Hand-Checked</span><span>24hr Processing</span><span>COD Available</span></div>
@@ -1624,6 +1638,25 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
           <ProductRow title="Recently Viewed" eyebrow="Continue browsing" products={products.filter(p => p.id !== product.id).slice(-6)} openProduct={openProduct} addToCart={addToCart} wishlist={wishlist} toggleWishlist={toggleWishlist} />
         </section>
       )}
+      <div className="pdp-sticky-orderbar" role="region" aria-label="Sticky product order bar">
+        <div className="pdp-sticky-qty">
+          <span>Quantity</span>
+          <div className="pdp-sticky-qty-controls">
+            <button type="button" onClick={() => updateQuantity((selectedBundle?.qty || 1) - 1)} aria-label="Decrease sticky quantity">−</button>
+            <strong>{selectedBundle?.qty || 1}</strong>
+            <button type="button" onClick={() => updateQuantity((selectedBundle?.qty || 1) + 1)} aria-label="Increase sticky quantity">+</button>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="pdp-sticky-cod-btn"
+          onClick={() => buyNow(product, selectedBundle?.qty || 1, variant, effectiveUnitPrice)}
+        >
+          <span>Order Now</span>
+          <strong>{money(selectedBundle?.totalPrice || product.price)}</strong>
+          <em>Cash on Delivery</em>
+        </button>
+      </div>
     </main>
   );
 }
@@ -4709,6 +4742,40 @@ const CSS = `
     box-shadow:0 18px 42px rgba(126,86,38,.12);
   }
 
+  .pdp-page{padding-bottom:116px;}
+  .pdp-title-trust{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-6px;}
+  .pdp-sale-sticker{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:0 14px;border-radius:999px;background:linear-gradient(135deg,var(--forest),#0e3a28);color:#fff;font-size:12px;font-weight:950;letter-spacing:.08em;box-shadow:0 12px 24px rgba(27,67,50,.2),inset 0 1px 0 rgba(255,255,255,.18);}
+  .pdp-half-stars{display:inline-flex;align-items:center;gap:1px;font-size:18px;line-height:1;color:#d5a62d;text-shadow:0 2px 8px rgba(213,166,45,.18);}
+  .pdp-half-stars .half{background:linear-gradient(90deg,#d5a62d 52%,#d9d2c2 52%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;}
+  .pdp-trusted-word{display:inline-flex;align-items:center;min-height:30px;padding:0 12px;border-radius:999px;background:#f7f0df;color:#9a6b12;border:1px solid rgba(154,107,18,.18);font-size:12px;font-weight:900;letter-spacing:.02em;}
+  .pdp-sticky-orderbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9400;width:min(960px,calc(100vw - 28px));display:grid;grid-template-columns:minmax(190px,260px) minmax(280px,1fr);gap:12px;align-items:center;padding:12px;background:rgba(255,255,255,.94);border:1px solid rgba(27,67,50,.18);border-radius:22px;box-shadow:0 24px 70px rgba(27,67,50,.24),0 1px 0 rgba(255,255,255,.9) inset;backdrop-filter:blur(18px);}
+  .pdp-sticky-qty{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f7f3ea;border:1px solid rgba(27,67,50,.12);border-radius:16px;padding:9px 10px 9px 14px;min-width:0;}
+  .pdp-sticky-qty>span{font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;color:var(--forest);white-space:nowrap;}
+  .pdp-sticky-qty-controls{display:grid;grid-template-columns:34px 38px 34px;align-items:center;border-radius:999px;background:#fff;border:1px solid rgba(27,67,50,.14);overflow:hidden;box-shadow:0 10px 22px rgba(27,67,50,.08);}
+  .pdp-sticky-qty-controls button{height:34px;color:var(--forest);font-size:20px;font-weight:950;background:#fff;transition:background .16s,color .16s,transform .16s;}
+  .pdp-sticky-qty-controls button:hover{background:var(--forest);color:#fff;}
+  .pdp-sticky-qty-controls strong{text-align:center;color:var(--forest);font-size:16px;font-weight:950;font-family:var(--font-head);}
+  .pdp-sticky-cod-btn{min-height:56px;border-radius:16px;background:linear-gradient(135deg,#164b35 0%,#0e3325 54%,#1f6c4c 100%);color:#fff;display:grid;grid-template-columns:auto auto auto;align-items:center;justify-content:center;gap:10px;padding:0 22px;border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 44px rgba(27,67,50,.35),inset 0 1px 0 rgba(255,255,255,.2);font-weight:950;letter-spacing:.01em;animation:forestCodShake 1.38s cubic-bezier(.2,.8,.2,1) infinite;overflow:hidden;position:relative;}
+  .pdp-sticky-cod-btn::after{content:"";position:absolute;inset:-50% auto -50% -34%;width:28%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-20deg);animation:stickyCodShine 2.4s ease-in-out infinite;pointer-events:none;}
+  .pdp-sticky-cod-btn span{font-size:16px;text-transform:uppercase;}
+  .pdp-sticky-cod-btn strong{font-size:18px;color:#f5d76e;font-family:var(--font-head);}
+  .pdp-sticky-cod-btn em{font-style:normal;font-size:12px;color:rgba(255,255,255,.78);font-weight:900;}
+  .pdp-sticky-cod-btn:hover{filter:saturate(1.08) brightness(1.03);box-shadow:0 24px 58px rgba(27,67,50,.46),inset 0 1px 0 rgba(255,255,255,.24);}
+  @keyframes forestCodShake{
+    0%,48%,100%{transform:translate3d(0,0,0) scale(1);}
+    55%{transform:translate3d(-12px,-4px,0) rotate(-1.2deg) scale(1.035);}
+    61%{transform:translate3d(12px,3px,0) rotate(1.2deg) scale(1.04);}
+    67%{transform:translate3d(-9px,4px,0) rotate(-.8deg) scale(1.025);}
+    73%{transform:translate3d(9px,-5px,0) rotate(.8deg) scale(1.035);}
+    81%{transform:translate3d(0,-7px,0) scale(1.045);}
+    90%{transform:translate3d(0,0,0) scale(1);}
+  }
+  @keyframes stickyCodShine{
+    0%,54%{left:-38%;opacity:0;}
+    68%{opacity:.65;}
+    100%{left:122%;opacity:0;}
+  }
+
   /* --- PDP mobile/tablet hardening: prevents gallery/info overlap on real phones --- */
   @media(max-width:1024px){
     .pdp{
@@ -4797,7 +4864,8 @@ const CSS = `
       clear:both;
     }
     .pdp-info>.pdp-cat,
-    .pdp-info>.pdp-title{
+    .pdp-info>.pdp-title,
+    .pdp-info>.pdp-title-trust{
       display:none !important;
     }
     .pdp-rating-row{
@@ -4867,16 +4935,50 @@ const CSS = `
       padding:9px 14px !important;
       line-height:1.2;
     }
+    .pdp-sticky-orderbar{
+      width:min(720px,calc(100vw - 20px));
+      grid-template-columns:minmax(150px,210px) minmax(0,1fr);
+      gap:8px;
+      padding:10px;
+      border-radius:18px;
+      bottom:10px;
+    }
+    .pdp-sticky-cod-btn{
+      min-height:52px;
+      padding:0 14px;
+      gap:7px;
+      grid-template-columns:auto auto;
+    }
+    .pdp-sticky-cod-btn em{grid-column:1 / -1;font-size:10px;margin-top:-4px;}
   }
 
   @media(max-width:480px){
     .pdp-mobile-head .pdp-title{font-size:clamp(26px,9vw,36px);}
+    .pdp-title-trust{gap:6px;margin-top:10px;}
+    .pdp-sale-sticker{min-height:28px;padding:0 12px;font-size:11px;}
+    .pdp-half-stars{font-size:16px;}
+    .pdp-trusted-word{min-height:28px;padding:0 10px;font-size:11px;}
     .pdp-trust-lines{padding:15px 14px !important;}
     .tl-item{font-size:13.5px !important;}
     .pdp-trust-badges{grid-template-columns:1fr 1fr;}
     .pdp-trust-badges span:last-child{grid-column:1 / -1;}
     .pdp-price-row{grid-template-columns:1fr;}
     .pdp-old,.pdp-save{justify-self:start;}
+    .pdp-page{padding-bottom:152px;}
+    .pdp-sticky-orderbar{
+      width:calc(100vw - 16px);
+      grid-template-columns:1fr;
+      gap:8px;
+      padding:9px;
+      border-radius:18px 18px 16px 16px;
+      bottom:8px;
+    }
+    .pdp-sticky-qty{padding:8px 9px 8px 12px;border-radius:14px;}
+    .pdp-sticky-qty-controls{grid-template-columns:32px 36px 32px;}
+    .pdp-sticky-qty-controls button{height:32px;}
+    .pdp-sticky-cod-btn{min-height:54px;width:100%;grid-template-columns:auto auto;gap:7px;padding:0 10px;border-radius:15px;}
+    .pdp-sticky-cod-btn span{font-size:14px;}
+    .pdp-sticky-cod-btn strong{font-size:16px;}
   }
 
   @media(prefers-reduced-motion:reduce){
