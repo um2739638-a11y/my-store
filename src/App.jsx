@@ -5112,6 +5112,38 @@ const CSS = `
   }
 
   @media(max-width:480px){
+    .sf-kicker,
+    .sf-hero-trust{
+      display:none !important;
+    }
+    .sf-hero{
+      padding-top:22px !important;
+      gap:14px !important;
+    }
+    .sf-hero h1{
+      margin-bottom:10px !important;
+      font-size:clamp(2.1rem,10vw,2.85rem) !important;
+    }
+    .sf-hero p{
+      margin-bottom:14px !important;
+      line-height:1.5 !important;
+    }
+    .sf-hero-actions{
+      margin-bottom:0 !important;
+    }
+    .sf-hero-showcase{
+      min-height:440px !important;
+      padding-top:58px !important;
+    }
+    .sf-hero-product{
+      min-height:320px !important;
+    }
+    .sf-hero-product-img{
+      max-height:270px !important;
+    }
+    video.sf-hero-product-img{
+      height:270px !important;
+    }
     .pdp-mobile-head{padding-bottom:0 !important;}
     .pdp-mobile-head .pdp-title{font-size:clamp(23px,7.6vw,31px);line-height:1.02;}
     .pdp-deal-alert{
