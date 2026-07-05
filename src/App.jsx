@@ -1569,7 +1569,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
             <PdpSaleTrust />
           </div>
           <div className="pdp-gallery">
-            <div className="pdp-main-box">
+            <div className={`pdp-main-box ${currentMedia?.type === "video" ? "pdp-main-box-video" : ""}`}>
               {show3d ? (
                 <Product3DViewer images={product.images} productName={product.name} />
               ) : currentMedia?.type === "video" ? (
@@ -4720,6 +4720,9 @@ const CSS = `
     box-shadow:0 26px 66px rgba(126,86,38,.14),inset 0 1px 0 rgba(255,255,255,.8);
     background:radial-gradient(circle at 50% 22%,#fffaf1 0%,#f3eadb 60%,#e7d8c1 100%);
   }
+  .pdp-main-box-video{
+    background:#0e1712 !important;
+  }
   .pdp-main-box::after{
     content:"";
     position:absolute;
@@ -4733,7 +4736,18 @@ const CSS = `
     transform:scaleX(1.02);
   }
   .pdp-main-img,.pdp-video{position:relative;z-index:1;transition:transform .26s cubic-bezier(.22,.9,.25,1);}
+  .pdp-main-box-video .pdp-video{
+    width:100% !important;
+    height:100% !important;
+    max-width:100% !important;
+    max-height:100% !important;
+    object-fit:contain !important;
+    object-position:center center !important;
+    background:#0e1712 !important;
+    transform:none !important;
+  }
   .pdp-main-box:hover .pdp-main-img,.pdp-main-box:hover .pdp-video{transform:translateY(-4px) scale(1.008);}
+  .pdp-main-box-video:hover .pdp-video{transform:none !important;}
   .pdp-buy-btn{
     background:linear-gradient(135deg,#e8192c 0%,#b71222 58%,#ff3b4f 100%) !important;
     color:#fff !important;
@@ -4984,6 +4998,12 @@ const CSS = `
       overflow:hidden !important;
     }
     .pdp-main-img,.pdp-video{width:100% !important;height:100% !important;object-fit:contain !important;}
+    .pdp-main-box-video{
+      aspect-ratio:9 / 16 !important;
+      max-height:min(66svh,620px) !important;
+      min-height:420px !important;
+      background:#0e1712 !important;
+    }
     .pdp-thumbs{
       width:100%;
       gap:9px !important;
@@ -5147,6 +5167,12 @@ const CSS = `
     video.sf-hero-product-img{
       height:270px !important;
     }
+    .pdp-page>.sec{
+      padding-top:8px !important;
+    }
+    .pdp{
+      gap:10px !important;
+    }
     .pdp-mobile-head{padding-bottom:0 !important;}
     .pdp-mobile-head .pdp-title{font-size:clamp(23px,7.6vw,31px);line-height:1.02;}
     .pdp-deal-alert{
@@ -5154,7 +5180,7 @@ const CSS = `
       gap:7px;
       padding:10px;
       border-radius:16px;
-      margin:8px 0 10px;
+      margin:0 0 10px;
     }
     .pdp-deal-icon{width:32px;height:32px;font-size:16px;}
     .pdp-deal-main{font-size:16px;}
@@ -5170,6 +5196,7 @@ const CSS = `
     .pdp-trust-lines{padding:15px 14px !important;}
     .pdp-gallery{gap:10px !important;padding-bottom:134px !important;}
     .pdp-main-box{aspect-ratio:1 / 1 !important;max-height:calc(100svh - 430px) !important;min-height:250px !important;}
+    .pdp-main-box-video{aspect-ratio:9 / 16 !important;max-height:min(62svh,560px) !important;min-height:390px !important;}
     .pdp-off-badge{top:10px !important;left:10px !important;padding:7px 12px !important;border-radius:12px !important;font-size:12px !important;}
     .tl-item{font-size:13.5px !important;}
     .pdp-trust-badges{grid-template-columns:1fr 1fr;}
