@@ -1459,6 +1459,19 @@ function PdpSaleTrust() {
   );
 }
 
+function PdpDealAlert({ off }) {
+  const saleText = off > 0 ? `-${off}% Sale` : "Sale Live";
+
+  return (
+    <div className="pdp-deal-alert" aria-label="Free delivery limited time sale offer">
+      <span className="pdp-deal-icon" aria-hidden="true">🚚</span>
+      <span className="pdp-deal-main">Free Delivery!</span>
+      <span className="pdp-deal-sub">Limited Time Only</span>
+      <span className="pdp-deal-sale">{saleText}</span>
+    </div>
+  );
+}
+
 function ProductPage({ settings, product, products, wishlist, toggleWishlist, openProduct, addToCart, buyNow }) {
   const hasVideo = !!product.video;
   const mediaItems = [
@@ -1499,6 +1512,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
   }, [product.id, mediaItems.length]);
 
   const off = percentageOff(product.price, product.compareAtPrice);
+  const dealOff = off > 0 ? off : fallbackSalePercent(product);
   const viewNow = 18 + ((product.soldCount || 10) % 31);
   const effectiveUnitPrice = selectedBundle ? Math.round(product.price * (1 - selectedBundle.discountPct / 100)) : (variant?.price || product.price);
   const wa = ["Assalam o Alaikum,", "", `I want to order from ${settings.storeName}.`, `Product: ${product.name}`, `Variant: ${variant?.label || "Default"}`, `Quantity: ${selectedBundle?.qty || 1}`, `Price: ${money(selectedBundle?.totalPrice || product.price)}`, "", "Please guide me about delivery."].join("\n");
@@ -1532,6 +1546,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
         <div className="pdp">
           <div className="pdp-mobile-head">
             <div className="pdp-cat">{product.category}</div>
+            <PdpDealAlert off={dealOff} />
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
             <PdpSaleTrust />
           </div>
@@ -1571,6 +1586,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
           </div>
           <div className="pdp-info">
             <div className="pdp-cat">{product.category}</div>
+            <PdpDealAlert off={dealOff} />
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
             <PdpSaleTrust />
             <div className="pdp-rating-row"><RatingStars rating={product.rating || 5} size="md" /><span className="pdp-rv">Rated {product.rating || 5}/5 · {(product.reviewCount || 0) + 24} reviews</span><span className="pdp-verified">✓ Verified</span></div>
@@ -4743,6 +4759,73 @@ const CSS = `
   }
 
   .pdp-page{padding-bottom:116px;}
+  .pdp-deal-alert{
+    position:relative;
+    display:grid;
+    grid-template-columns:auto auto auto 1fr;
+    align-items:center;
+    gap:9px;
+    width:100%;
+    padding:12px 14px;
+    border-radius:18px;
+    overflow:hidden;
+    background:linear-gradient(135deg,#123f2d 0%,#1d5b40 58%,#d2ad3b 140%);
+    color:#fff;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 18px 44px rgba(27,67,50,.26),inset 0 1px 0 rgba(255,255,255,.2);
+    isolation:isolate;
+    animation:pdpDealPulse 2.4s ease-in-out infinite;
+  }
+  .pdp-deal-alert::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.22) 42%,transparent 72%);
+    transform:translateX(-120%) skewX(-15deg);
+    animation:pdpDealSweep 2.9s ease-in-out infinite;
+    z-index:-1;
+  }
+  .pdp-deal-icon{
+    display:grid;
+    place-items:center;
+    width:36px;
+    height:36px;
+    border-radius:999px;
+    background:rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+    font-size:18px;
+  }
+  .pdp-deal-main{
+    font-size:18px;
+    font-weight:950;
+    letter-spacing:-.01em;
+    white-space:nowrap;
+  }
+  .pdp-deal-sub{
+    color:#f5d76e;
+    font-size:12px;
+    font-weight:950;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    white-space:nowrap;
+  }
+  .pdp-deal-sale{
+    justify-self:end;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:32px;
+    padding:0 12px;
+    border-radius:999px;
+    background:#fff;
+    color:#164b35;
+    font-size:12px;
+    font-weight:950;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    box-shadow:0 10px 22px rgba(0,0,0,.13);
+    white-space:nowrap;
+  }
   .pdp-title-trust{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-6px;}
   .pdp-sale-sticker{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:0 14px;border-radius:999px;background:linear-gradient(135deg,var(--forest),#0e3a28);color:#fff;font-size:12px;font-weight:950;letter-spacing:.08em;box-shadow:0 12px 24px rgba(27,67,50,.2),inset 0 1px 0 rgba(255,255,255,.18);}
   .pdp-half-stars{display:inline-flex;align-items:center;gap:1px;font-size:18px;line-height:1;color:#d5a62d;text-shadow:0 2px 8px rgba(213,166,45,.18);}
@@ -4774,6 +4857,15 @@ const CSS = `
     0%,54%{left:-38%;opacity:0;}
     68%{opacity:.65;}
     100%{left:122%;opacity:0;}
+  }
+  @keyframes pdpDealPulse{
+    0%,100%{transform:translateY(0) scale(1);box-shadow:0 18px 44px rgba(27,67,50,.24),inset 0 1px 0 rgba(255,255,255,.2);}
+    50%{transform:translateY(-1px) scale(1.01);box-shadow:0 22px 54px rgba(27,67,50,.32),inset 0 1px 0 rgba(255,255,255,.24);}
+  }
+  @keyframes pdpDealSweep{
+    0%,48%{transform:translateX(-120%) skewX(-15deg);opacity:0;}
+    62%{opacity:1;}
+    100%{transform:translateX(130%) skewX(-15deg);opacity:0;}
   }
 
   /* --- PDP mobile/tablet hardening: prevents gallery/info overlap on real phones --- */
@@ -4865,6 +4957,7 @@ const CSS = `
     }
     .pdp-info>.pdp-cat,
     .pdp-info>.pdp-title,
+    .pdp-info>.pdp-deal-alert,
     .pdp-info>.pdp-title-trust{
       display:none !important;
     }
@@ -4954,6 +5047,17 @@ const CSS = `
 
   @media(max-width:480px){
     .pdp-mobile-head .pdp-title{font-size:clamp(26px,9vw,36px);}
+    .pdp-deal-alert{
+      grid-template-columns:auto minmax(0,1fr) auto;
+      gap:7px;
+      padding:10px;
+      border-radius:16px;
+      margin:8px 0 10px;
+    }
+    .pdp-deal-icon{width:32px;height:32px;font-size:16px;}
+    .pdp-deal-main{font-size:16px;}
+    .pdp-deal-sub{grid-column:2 / 3;font-size:10px;line-height:1.1;}
+    .pdp-deal-sale{grid-column:3 / 4;grid-row:1 / 3;min-height:30px;padding:0 10px;font-size:10px;}
     .pdp-title-trust{gap:6px;margin-top:10px;}
     .pdp-sale-sticker{min-height:28px;padding:0 12px;font-size:11px;}
     .pdp-half-stars{font-size:16px;}
