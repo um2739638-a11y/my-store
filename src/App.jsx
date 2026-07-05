@@ -1861,8 +1861,9 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder, coupons }) 
           <div className="sum-divider" />
           <div className="sum-row total"><span>Total</span><strong>{money(Math.max(0, total - discountAmount))}</strong></div>
           <label className="terms-check">
-            <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} />
-            <span>I agree to the <button type="button" onClick={() => routerNavigate(pagePath("terms"))}>Terms of Service</button>.</span>
+            <input className="terms-input" type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} />
+            <span className="terms-box" aria-hidden="true">{acceptedTerms ? "✓" : ""}</span>
+            <span className="terms-copy">I understand my order will be forwarded to a verified supplier/fulfilment partner and delivered safely within approx. 3-4 working days. I also agree to the <button type="button" onClick={e => { e.preventDefault(); e.stopPropagation(); routerNavigate(pagePath("terms")); }}>Terms of Service</button>.</span>
           </label>
           <button className="btn-place" disabled={!acceptedTerms} onClick={() => placeOrder({ ...form, coupon: appliedCoupon?.code })}>✓ Place Order — {money(Math.max(0, total - discountAmount))}</button>
         </div>
@@ -1944,6 +1945,7 @@ function TermsPage() {
   const content = [
     { heading: "📜 Acceptance of Terms", text: "By accessing and using ISmallOne, you accept and agree to be bound by these Terms and Conditions." },
     { heading: "🛒 Product & Pricing", list: ["All prices are in Pakistani Rupees (PKR)", "Prices may change without prior notice", "Product images are for representation purposes", "Stock availability not guaranteed until order confirmation"] },
+    { heading: "📦 Fulfilment Notice", text: "ISmallOne receives your order and forwards it to our verified HHC fulfilment partner/supplier for packing and dispatch. Your product is processed through the supplier network, quality-checked before dispatch where applicable, and delivered safely to your address within approximately 3-4 working days. Your contact and delivery details are shared only for order fulfilment, courier delivery, and support purposes." },
     { heading: "💵 Payment Terms", text: "We accept Cash on Delivery, JazzCash, EasyPaisa, and bank transfers. COD orders must be paid in full upon delivery." },
     { heading: "🚫 Prohibited Activities", list: ["Placing fraudulent or prank orders", "Providing false delivery information", "Attempting to exploit pricing errors", "Abusive behavior toward staff"] },
   ];
@@ -3382,10 +3384,13 @@ const CSS = `
   .cod-box{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;border-radius:var(--r-lg);padding:16px;margin-top:16px;}
   .cod-box strong{display:block;font-size:14px;font-weight:700;color:#15803d;margin-bottom:4px;font-family:var(--font-head);}
   .cod-box p{font-size:13px;color:#16a34a}
-  .terms-check{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:12px 13px;border-radius:var(--r);background:#fffaf0;border:1.5px solid rgba(27,67,50,.14);font-size:12px;line-height:1.5;color:#5f6262;cursor:pointer;}
-  .terms-check input{width:18px;height:18px;margin-top:1px;accent-color:var(--forest);flex-shrink:0;}
-  .terms-check span{display:block;}
-  .terms-check button{display:inline;color:var(--forest);font-weight:850;text-decoration:underline;text-underline-offset:3px;}
+  .terms-check{display:flex;align-items:flex-start;gap:11px;margin-top:14px;padding:13px 14px;border-radius:var(--r);background:#fffaf0;border:1.5px solid rgba(27,67,50,.16);font-size:12px;line-height:1.55;color:#5f6262;cursor:pointer;box-shadow:0 10px 22px rgba(27,67,50,.05);}
+  .terms-input{position:absolute;opacity:0;pointer-events:none;}
+  .terms-box{width:24px;height:24px;margin-top:1px;border-radius:7px;border:2px solid rgba(27,67,50,.28);background:#fff;display:grid;place-items:center;color:#fff;font-size:17px;font-weight:950;line-height:1;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.8);transition:background .18s,border-color .18s,box-shadow .18s,transform .18s;}
+  .terms-input:checked + .terms-box{background:var(--forest);border-color:var(--forest);box-shadow:0 8px 18px rgba(27,67,50,.22),inset 0 1px 0 rgba(255,255,255,.2);transform:scale(1.04);}
+  .terms-input:focus-visible + .terms-box{outline:3px solid rgba(27,67,50,.2);outline-offset:2px;}
+  .terms-copy{display:block;font-weight:650;color:#4f5552;}
+  .terms-copy button{display:inline;color:var(--forest);font-weight:900;text-decoration:underline;text-underline-offset:3px;}
   .co-items{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
   .co-row{display:flex;align-items:center;gap:10px}
   .co-img{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
