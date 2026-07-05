@@ -1511,6 +1511,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
   const [show3d, setShow3d] = useState(false);
   const [selectedBundle, setSelectedBundle] = useState(() => defaultBundle);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [videoAspect, setVideoAspect] = useState(null);
   const autoSlideRef = useRef(null);
 
   useEffect(() => {
@@ -1519,6 +1520,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
     setSelectedBundle(defaultBundle);
     setInfoOpen(false);
     setShow3d(false);
+    setVideoAspect(null);
   }, [defaultBundle, product.id, variantOptions]);
 
   // Auto-slide every 4 seconds
@@ -1569,11 +1571,26 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
             <PdpSaleTrust />
           </div>
           <div className="pdp-gallery">
-            <div className={`pdp-main-box ${currentMedia?.type === "video" ? "pdp-main-box-video" : ""}`}>
+            <div
+              className={`pdp-main-box ${currentMedia?.type === "video" ? "pdp-main-box-video" : ""}`}
+              style={currentMedia?.type === "video" && videoAspect ? { "--pdp-media-aspect": videoAspect } : undefined}
+            >
               {show3d ? (
                 <Product3DViewer images={product.images} productName={product.name} />
               ) : currentMedia?.type === "video" ? (
-                <video key={currentMedia.src} src={currentMedia.src} autoPlay muted loop playsInline className="pdp-video" />
+                <video
+                  key={currentMedia.src}
+                  src={currentMedia.src}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="pdp-video"
+                  onLoadedMetadata={event => {
+                    const { videoWidth, videoHeight } = event.currentTarget;
+                    if (videoWidth && videoHeight) setVideoAspect(`${videoWidth} / ${videoHeight}`);
+                  }}
+                />
               ) : (
                 <SafeImage className="pdp-main-img" src={currentMedia?.src} alt={cleanProductName(product.name)} loading="eager" />
               )}
@@ -4722,6 +4739,7 @@ const CSS = `
   }
   .pdp-main-box-video{
     background:#0e1712 !important;
+    aspect-ratio:var(--pdp-media-aspect,9 / 16) !important;
   }
   .pdp-main-box::after{
     content:"";
@@ -4999,7 +5017,7 @@ const CSS = `
     }
     .pdp-main-img,.pdp-video{width:100% !important;height:100% !important;object-fit:contain !important;}
     .pdp-main-box-video{
-      aspect-ratio:9 / 16 !important;
+      aspect-ratio:var(--pdp-media-aspect,9 / 16) !important;
       max-height:min(66svh,620px) !important;
       min-height:420px !important;
       background:#0e1712 !important;
@@ -5196,7 +5214,7 @@ const CSS = `
     .pdp-trust-lines{padding:15px 14px !important;}
     .pdp-gallery{gap:10px !important;padding-bottom:134px !important;}
     .pdp-main-box{aspect-ratio:1 / 1 !important;max-height:calc(100svh - 430px) !important;min-height:250px !important;}
-    .pdp-main-box-video{aspect-ratio:9 / 16 !important;max-height:min(62svh,560px) !important;min-height:390px !important;}
+    .pdp-main-box-video{aspect-ratio:var(--pdp-media-aspect,9 / 16) !important;max-height:none !important;min-height:0 !important;}
     .pdp-off-badge{top:10px !important;left:10px !important;padding:7px 12px !important;border-radius:12px !important;font-size:12px !important;}
     .tl-item{font-size:13.5px !important;}
     .pdp-trust-badges{grid-template-columns:1fr 1fr;}
@@ -5221,6 +5239,32 @@ const CSS = `
     .pdp-sticky-cod-btn span{font-size:13px;}
     .pdp-sticky-cod-btn strong{font-size:15px;}
     .pdp-sticky-cod-btn em{font-size:9px;}
+  }
+
+  @media(max-width:640px){
+    .pdp-page{
+      margin-top:0 !important;
+      padding-top:0 !important;
+    }
+    .pdp-page>.sec{
+      padding-top:0 !important;
+      margin-top:0 !important;
+    }
+    .pdp{
+      margin-top:0 !important;
+    }
+    .pdp-mobile-head{
+      margin-top:0 !important;
+      padding-top:0 !important;
+    }
+    .pdp-deal-alert{
+      margin-top:0 !important;
+    }
+    .pdp-main-box-video .pdp-video{
+      object-fit:contain !important;
+      object-position:center center !important;
+      transform:none !important;
+    }
   }
 
   @media(prefers-reduced-motion:reduce){
