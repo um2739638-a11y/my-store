@@ -1560,7 +1560,6 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
   return (
     <main className="pdp-page">
       <section className="sec">
-        <div className="breadcrumb"><span>Home</span> › <span>{product.category}</span> › <span className="bc-cur">{product.name}</span></div>
         <div className="pdp">
           <div className="pdp-mobile-head">
             <div className="pdp-cat">{product.category}</div>
