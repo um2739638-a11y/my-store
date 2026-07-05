@@ -4946,6 +4946,9 @@ const CSS = `
       width:100%;
       padding:0 2px 2px;
     }
+    .pdp-mobile-head>.pdp-cat{
+      display:none !important;
+    }
     .pdp-mobile-head .pdp-cat{
       font-size:11px;
       line-height:1.2;
