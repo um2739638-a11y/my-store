@@ -1459,14 +1459,32 @@ function PdpSaleTrust() {
   );
 }
 
-function PdpDealAlert({ off }) {
+function PdpDealAlert({ off, timerKey }) {
   const saleText = off > 0 ? `-${off}% Sale` : "Sale Live";
+  const [secondsLeft, setSecondsLeft] = useState(60 * 60);
+
+  useEffect(() => {
+    setSecondsLeft(60 * 60);
+    const timer = setInterval(() => {
+      setSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timerKey]);
+
+  const saleTimer = useMemo(() => {
+    const hours = String(Math.floor(secondsLeft / 3600)).padStart(2, "0");
+    const minutes = String(Math.floor((secondsLeft / 60) % 60)).padStart(2, "0");
+    const seconds = String(secondsLeft % 60).padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  }, [secondsLeft]);
 
   return (
     <div className="pdp-deal-alert" aria-label="Free delivery limited time sale offer">
       <span className="pdp-deal-icon" aria-hidden="true">🚚</span>
       <span className="pdp-deal-main">Free Delivery!</span>
       <span className="pdp-deal-sub">Limited Time Only</span>
+      <span className="pdp-deal-timer"><span>Sale Ends In</span><strong>{saleTimer}</strong></span>
       <span className="pdp-deal-sale">{saleText}</span>
     </div>
   );
@@ -1546,7 +1564,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
         <div className="pdp">
           <div className="pdp-mobile-head">
             <div className="pdp-cat">{product.category}</div>
-            <PdpDealAlert off={dealOff} />
+            <PdpDealAlert off={dealOff} timerKey={product.id} />
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
             <PdpSaleTrust />
           </div>
@@ -1586,7 +1604,7 @@ function ProductPage({ settings, product, products, wishlist, toggleWishlist, op
           </div>
           <div className="pdp-info">
             <div className="pdp-cat">{product.category}</div>
-            <PdpDealAlert off={dealOff} />
+            <PdpDealAlert off={dealOff} timerKey={product.id} />
             <h1 className="pdp-title">{cleanProductName(product.name)}</h1>
             <PdpSaleTrust />
             <div className="pdp-rating-row"><RatingStars rating={product.rating || 5} size="md" /><span className="pdp-rv">Rated {product.rating || 5}/5 · {(product.reviewCount || 0) + 24} reviews</span><span className="pdp-verified">✓ Verified</span></div>
@@ -4762,7 +4780,7 @@ const CSS = `
   .pdp-deal-alert{
     position:relative;
     display:grid;
-    grid-template-columns:auto auto auto 1fr;
+    grid-template-columns:auto auto auto minmax(132px,1fr) auto;
     align-items:center;
     gap:9px;
     width:100%;
@@ -4808,6 +4826,34 @@ const CSS = `
     text-transform:uppercase;
     letter-spacing:.08em;
     white-space:nowrap;
+  }
+  .pdp-deal-timer{
+    justify-self:end;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:34px;
+    padding:4px 10px;
+    border-radius:999px;
+    background:rgba(255,255,255,.13);
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+    white-space:nowrap;
+  }
+  .pdp-deal-timer span{
+    color:rgba(255,255,255,.82);
+    font-size:10px;
+    font-weight:950;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .pdp-deal-timer strong{
+    color:#f5d76e;
+    font-family:var(--font-head);
+    font-size:17px;
+    line-height:1;
+    letter-spacing:.04em;
+    text-shadow:0 2px 12px rgba(245,215,110,.22);
   }
   .pdp-deal-sale{
     justify-self:end;
@@ -5057,6 +5103,9 @@ const CSS = `
     .pdp-deal-icon{width:32px;height:32px;font-size:16px;}
     .pdp-deal-main{font-size:16px;}
     .pdp-deal-sub{grid-column:2 / 3;font-size:10px;line-height:1.1;}
+    .pdp-deal-timer{grid-column:1 / -1;justify-self:stretch;justify-content:space-between;min-height:32px;padding:4px 10px;}
+    .pdp-deal-timer span{font-size:9px;}
+    .pdp-deal-timer strong{font-size:16px;}
     .pdp-deal-sale{grid-column:3 / 4;grid-row:1 / 3;min-height:30px;padding:0 10px;font-size:10px;}
     .pdp-title-trust{gap:6px;margin-top:10px;}
     .pdp-sale-sticker{min-height:28px;padding:0 12px;font-size:11px;}
