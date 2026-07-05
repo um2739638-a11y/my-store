@@ -1793,6 +1793,8 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder, coupons }) 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const routerNavigate = useNavigate();
 
   const handleApplyCoupon = () => {
     setCouponError("");
@@ -1858,7 +1860,11 @@ function CheckoutPage({ cart, subtotal, shipping, total, placeOrder, coupons }) 
           )}
           <div className="sum-divider" />
           <div className="sum-row total"><span>Total</span><strong>{money(Math.max(0, total - discountAmount))}</strong></div>
-          <button className="btn-place" onClick={() => placeOrder({ ...form, coupon: appliedCoupon?.code })}>✓ Place Order — {money(Math.max(0, total - discountAmount))}</button>
+          <label className="terms-check">
+            <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} />
+            <span>I agree to the <button type="button" onClick={() => routerNavigate(pagePath("terms"))}>Terms of Service</button>.</span>
+          </label>
+          <button className="btn-place" disabled={!acceptedTerms} onClick={() => placeOrder({ ...form, coupon: appliedCoupon?.code })}>✓ Place Order — {money(Math.max(0, total - discountAmount))}</button>
         </div>
       </div>
     </section></main>
@@ -3376,6 +3382,10 @@ const CSS = `
   .cod-box{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;border-radius:var(--r-lg);padding:16px;margin-top:16px;}
   .cod-box strong{display:block;font-size:14px;font-weight:700;color:#15803d;margin-bottom:4px;font-family:var(--font-head);}
   .cod-box p{font-size:13px;color:#16a34a}
+  .terms-check{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:12px 13px;border-radius:var(--r);background:#fffaf0;border:1.5px solid rgba(27,67,50,.14);font-size:12px;line-height:1.5;color:#5f6262;cursor:pointer;}
+  .terms-check input{width:18px;height:18px;margin-top:1px;accent-color:var(--forest);flex-shrink:0;}
+  .terms-check span{display:block;}
+  .terms-check button{display:inline;color:var(--forest);font-weight:850;text-decoration:underline;text-underline-offset:3px;}
   .co-items{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
   .co-row{display:flex;align-items:center;gap:10px}
   .co-img{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
@@ -3384,6 +3394,7 @@ const CSS = `
   .co-var{font-size:11px !important;color:var(--muted) !important;font-weight:400 !important}
   .btn-place{width:100%;height:54px;background:linear-gradient(135deg,var(--red),#ff1a3e);color:white;border-radius:var(--r-lg);font-size:16px;font-weight:700;margin-top:14px;box-shadow:0 8px 24px rgba(217,4,41,.25);transition:all .25s;font-family:var(--font-body);}
   .btn-place:hover{background:linear-gradient(135deg,var(--red-dark),var(--red));transform:translateY(-2px)}
+  .btn-place:disabled{opacity:.48;cursor:not-allowed;filter:grayscale(.18);transform:none !important;box-shadow:none;}
 
   /* ── CONFIRMATION ── */
   .confirm-wrap{text-align:center;padding:60px 20px;max-width:520px;margin:0 auto;}
