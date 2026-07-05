@@ -1478,13 +1478,14 @@ function PdpDealAlert({ off, timerKey }) {
     const seconds = String(secondsLeft % 60).padStart(2, "0");
     return `${hours}:${minutes}:${seconds}`;
   }, [secondsLeft]);
+  const progressPct = `${Math.max(0, Math.min(100, (secondsLeft / 3600) * 100))}%`;
 
   return (
     <div className="pdp-deal-alert" aria-label="Free delivery limited time sale offer">
       <span className="pdp-deal-icon" aria-hidden="true">🚚</span>
       <span className="pdp-deal-main">Free Delivery!</span>
       <span className="pdp-deal-sub">Limited Time Only</span>
-      <span className="pdp-deal-timer"><span>Sale Ends In</span><strong>{saleTimer}</strong></span>
+      <span className="pdp-deal-timer" style={{ "--timer-progress": progressPct }}><span>Sale Ends In</span><strong>{saleTimer}</strong></span>
       <span className="pdp-deal-sale">{saleText}</span>
     </div>
   );
@@ -4827,6 +4828,7 @@ const CSS = `
     white-space:nowrap;
   }
   .pdp-deal-timer{
+    position:relative;
     justify-self:end;
     display:inline-flex;
     align-items:center;
@@ -4838,21 +4840,35 @@ const CSS = `
     border:1px solid rgba(255,255,255,.18);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
     white-space:nowrap;
+    overflow:hidden;
+    isolation:isolate;
+  }
+  .pdp-deal-timer::before{
+    content:"";
+    position:absolute;
+    inset:0 auto 0 0;
+    width:var(--timer-progress,100%);
+    border-radius:inherit;
+    background:linear-gradient(90deg,#ff8a00 0%,#ffb000 45%,#ffe16a 100%);
+    opacity:.9;
+    box-shadow:0 0 22px rgba(255,176,0,.34);
+    transition:width .6s linear;
+    z-index:-1;
   }
   .pdp-deal-timer span{
-    color:rgba(255,255,255,.82);
+    color:#173b2d;
     font-size:10px;
     font-weight:950;
     text-transform:uppercase;
     letter-spacing:.08em;
   }
   .pdp-deal-timer strong{
-    color:#f5d76e;
+    color:#fff;
     font-family:var(--font-head);
     font-size:17px;
     line-height:1;
     letter-spacing:.04em;
-    text-shadow:0 2px 12px rgba(245,215,110,.22);
+    text-shadow:0 2px 10px rgba(93,45,0,.32);
   }
   .pdp-deal-sale{
     justify-self:end;
@@ -4957,9 +4973,14 @@ const CSS = `
     }
     .pdp-main-box{
       width:100%;
-      max-height:none !important;
+      max-height:min(58vh,560px) !important;
       border-radius:18px !important;
+      aspect-ratio:4 / 3 !important;
+      display:grid !important;
+      place-items:center !important;
+      overflow:hidden !important;
     }
+    .pdp-main-img,.pdp-video{width:100% !important;height:100% !important;object-fit:contain !important;}
     .pdp-thumbs{
       width:100%;
       gap:9px !important;
@@ -5091,7 +5112,8 @@ const CSS = `
   }
 
   @media(max-width:480px){
-    .pdp-mobile-head .pdp-title{font-size:clamp(26px,9vw,36px);}
+    .pdp-mobile-head{padding-bottom:0 !important;}
+    .pdp-mobile-head .pdp-title{font-size:clamp(23px,7.6vw,31px);line-height:1.02;}
     .pdp-deal-alert{
       grid-template-columns:auto minmax(0,1fr) auto;
       gap:7px;
@@ -5111,6 +5133,9 @@ const CSS = `
     .pdp-half-stars{font-size:16px;}
     .pdp-trusted-word{min-height:28px;padding:0 10px;font-size:11px;}
     .pdp-trust-lines{padding:15px 14px !important;}
+    .pdp-gallery{gap:10px !important;padding-bottom:134px !important;}
+    .pdp-main-box{aspect-ratio:1 / 1 !important;max-height:calc(100svh - 430px) !important;min-height:250px !important;}
+    .pdp-off-badge{top:10px !important;left:10px !important;padding:7px 12px !important;border-radius:12px !important;font-size:12px !important;}
     .tl-item{font-size:13.5px !important;}
     .pdp-trust-badges{grid-template-columns:1fr 1fr;}
     .pdp-trust-badges span:last-child{grid-column:1 / -1;}
@@ -5119,18 +5144,21 @@ const CSS = `
     .pdp-page{padding-bottom:152px;}
     .pdp-sticky-orderbar{
       width:calc(100vw - 16px);
-      grid-template-columns:1fr;
-      gap:8px;
-      padding:9px;
-      border-radius:18px 18px 16px 16px;
+      grid-template-columns:112px minmax(0,1fr);
+      gap:7px;
+      padding:8px;
+      border-radius:18px;
       bottom:8px;
     }
-    .pdp-sticky-qty{padding:8px 9px 8px 12px;border-radius:14px;}
-    .pdp-sticky-qty-controls{grid-template-columns:32px 36px 32px;}
-    .pdp-sticky-qty-controls button{height:32px;}
-    .pdp-sticky-cod-btn{min-height:54px;width:100%;grid-template-columns:auto auto;gap:7px;padding:0 10px;border-radius:15px;}
-    .pdp-sticky-cod-btn span{font-size:14px;}
-    .pdp-sticky-cod-btn strong{font-size:16px;}
+    .pdp-sticky-qty{display:grid;grid-template-columns:1fr;justify-items:center;gap:4px;padding:7px 6px;border-radius:14px;}
+    .pdp-sticky-qty>span{font-size:9px;letter-spacing:.05em;}
+    .pdp-sticky-qty-controls{grid-template-columns:27px 28px 27px;}
+    .pdp-sticky-qty-controls button{height:28px;font-size:17px;}
+    .pdp-sticky-qty-controls strong{width:auto;font-size:14px;}
+    .pdp-sticky-cod-btn{min-height:58px;width:100%;grid-template-columns:auto auto;gap:6px;padding:0 8px;border-radius:15px;}
+    .pdp-sticky-cod-btn span{font-size:13px;}
+    .pdp-sticky-cod-btn strong{font-size:15px;}
+    .pdp-sticky-cod-btn em{font-size:9px;}
   }
 
   @media(prefers-reduced-motion:reduce){
